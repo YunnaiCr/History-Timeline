@@ -17,6 +17,20 @@
 - **事件层级** —— 长周期事件可以包含具体到某天的事件，两者各有合适的时间尺度
 - **双重分类** —— 类别与标签彼此独立，可以组合过滤
 
+## 直接运行
+
+编译好的程序是**单个 exe 文件**，双击即可打开：
+
+```
+history-timeline.exe
+```
+
+不需要安装 Node.js、Rust 或 Visual Studio，也不需要安装过程，删掉文件就等于卸载。
+
+首次启动会在本机建立数据目录（见[数据存储](#数据存储)）。之后每次改动都会自动保存。
+
+> 仓库目前不附带预编译的 exe，需要自己生成一次 —— 见[从源码构建](#从源码构建)，完成后产物在 `app/src-tauri/target/release/history-timeline.exe`。
+
 ## 功能
 
 ### 时间轴
@@ -45,34 +59,6 @@
 - JSON 导出与导入，导入支持**合并**（追加到现有数据）或**覆盖**两种模式
 - 导入时自动处理类别、标签的同名复用与 id 冲突
 
-## 安装与运行
-
-### 环境要求
-
-| 依赖 | 版本 |
-|---|---|
-| Node.js | 18 以上 |
-| Rust | stable（MSVC 工具链） |
-| Visual Studio | 2022 或 2026，需勾选「使用 C++ 的桌面开发」 |
-| WebView2 | Windows 10/11 通常已自带 |
-
-### 开发
-
-```bash
-cd app
-npm install
-npm run tauri dev
-```
-
-### 构建
-
-```bash
-cd app
-npm run tauri build
-```
-
-产物位于 `app/src-tauri/target/release/`。
-
 ## 使用说明
 
 | 操作 | 效果 |
@@ -81,21 +67,98 @@ npm run tauri build
 | `←` `→` / `+` `-` | 键盘平移与缩放 |
 | 点击数量标记 | 放大到该时段，收纳的事件自动展开 |
 | 点击事件卡片 | 打开详情面板，可编辑、删除、添加子事件 |
-| 悬停事件卡片 | 显示摘要 |
+| 悬停事件卡片 | 显示摘要（停一下才出现，不挡点击） |
 | 顶栏类别 / 标签 | 多选筛选 |
 | 顶栏「表格」 | 切换到表格视图 |
 
 ## 数据存储
 
-数据保存在本地应用数据目录中：
+数据保存在本机应用数据目录：
 
 ```
 %LOCALAPPDATA%\com.yunnai.historytimeline\EBWebView\Default\Local Storage
 ```
 
-如需备份、迁移或在其他设备使用，请使用「导出 JSON」将数据保存为文件，再通过「导入 JSON」恢复。导入支持**合并**（追加到现有数据）和**覆盖**（整体替换）两种模式。
+**建议定期备份。** 这个目录是浏览器内核的数据库格式，不能直接复制阅读；请用应用内的「导出 JSON」生成一份可读文件，再用「导入 JSON」恢复到其他设备。
 
-导出的 JSON 是**可手写**的：日期写成 `1911-10-10` 或 `-221`，类别和标签用名称。也可以只用记事本写几条事件再导入。格式说明见 [JSON 数据格式](docs/JSON格式.md)。
+导出的 JSON 是**可手写**的：日期写成 `1911-10-10` 或 `-221`，类别和标签用名称，也可以只用记事本写几条事件再导入。详见 [JSON 数据格式](docs/JSON格式.md)。
+
+## 从源码构建
+
+只有需要自己生成 exe 或修改代码时才需要这一节。
+
+### 环境要求
+
+| 依赖 | 说明 |
+|---|---|
+| Node.js | 18 以上 |
+| Rust | stable，MSVC 工具链 |
+| Visual Studio | 2022 或 2026，安装时必须勾选「使用 C++ 的桌面开发」 |
+| WebView2 | Windows 10/11 通常已自带 |
+
+### 为什么要 `npm install`
+
+界面的依赖（React、Vite、TypeScript 等）**不放进仓库**：安装后约 82 MB、几千个文件，且与操作系统和架构绑定，放进版本库既臃肿又没法跨平台。仓库里只记录两份清单：
+
+- `package.json` —— 声明需要哪些依赖
+- `package-lock.json` —— 锁定每个依赖的确切版本
+
+`npm install` 做的就是照着这两份清单把依赖下载到 `app/node_modules`。
+
+> 类比：npm 相当于 Python 的 pip、C++ 的 vcpkg；`package.json` 相当于 `requirements.txt`。
+> 这一步只需要做一次，之后除非依赖有变动，否则不用重复执行。
+
+### 开发模式
+
+```bash
+cd app
+npm install        # 只需第一次
+npm run tauri dev  # 启动窗口，改代码即时生效
+```
+
+### 「构建」是什么意思
+
+构建 = 把源码**编译并打包**成一个可以直接运行的 exe。分两步：
+
+1. **前端**：TypeScript + React 源码 → 浏览器能执行的 JS/CSS（由 Vite 完成）
+2. **桌面外壳**：把上一步的产物嵌进 Rust 程序，链接成单个 exe（由 Tauri 完成）
+
+```bash
+cd app
+npm run tauri build
+```
+
+产物：`app/src-tauri/target/release/history-timeline.exe`，可直接拷到别的电脑上双击运行。
+
+### 开发模式与构建产物的区别
+
+| | `npm run tauri dev` | `npm run tauri build` |
+|---|---|---|
+| 产出 | 不产出文件，只是打开一个窗口 | 生成 exe |
+| 依赖 | 每次运行都要 Node.js 和 Rust | 生成的 exe 不需要任何运行时 |
+| 改代码 | 保存后自动刷新 | 需要重新构建 |
+| 启动速度 | 慢（第一次要编译 Rust，可能 5–15 分钟） | 快 |
+| 用途 | 开发调试 | 日常使用、分发给别人 |
+
+### 其他构建选项
+
+```bash
+npm run tauri build -- --no-bundle   # 只出 exe，不生成安装包
+npm run tauri build                  # 同时生成 NSIS 安装包
+```
+
+安装包位于 `app/src-tauri/target/release/bundle/`。
+
+### 只调试界面
+
+界面代码不依赖任何 Tauri 接口，可以只在浏览器里跑：
+
+```bash
+cd app
+npm run dev     # 浏览器打开 http://127.0.0.1:1420
+```
+
+注意：浏览器模式和桌面版的数据**互不相通**（各自独立的存储位置）。
 
 ## 技术栈
 
@@ -127,19 +190,20 @@ app/
 
 ## 开发自检
 
-项目包含一组不依赖浏览器的校验脚本，覆盖时间换算、收纳布局、存储与导入导出等逻辑：
+项目包含一组不依赖浏览器的校验脚本，覆盖时间换算、收纳布局、数据完整性、导入导出等逻辑：
 
 ```bash
 cd app
-node build-m0.mjs
-node selfcheck/timecheck.mjs
-node selfcheck/bcecheck.mjs
-node selfcheck/clustercheck.mjs
-node selfcheck/childbandcheck.mjs
-node selfcheck/fitcheck.mjs
-node selfcheck/storecheck.mjs
-node selfcheck/iocheck.mjs
-node selfcheck/uicheck.mjs
+node build-m0.mjs                    # 先把 TypeScript 编译到 dist-src/，自检脚本读取它
+node selfcheck/timecheck.mjs         # 时间换算与缩放锚点
+node selfcheck/bcecheck.mjs          # 公元前 / 公元换算
+node selfcheck/clustercheck.mjs      # 收纳与卡片轨道
+node selfcheck/childbandcheck.mjs    # 子事件布局
+node selfcheck/fitcheck.mjs          # 首屏自适应
+node selfcheck/datacheck.mjs         # 示例数据完整性
+node selfcheck/storecheck.mjs        # 存储容错
+node selfcheck/iocheck.mjs           # JSON 导入导出与合并
+node selfcheck/uicheck.mjs           # 界面回归检查
 ```
 
 ## 文档
