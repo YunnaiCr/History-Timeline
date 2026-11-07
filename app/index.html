@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>历史事件线</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- M0 用原生 JS 加载编译后的模块：避开沙箱里打包器 spawn 子进程的限制，也免去 esbuild 配置 -->
+    <script type="module">
+      import React from "react";
+      import { createRoot } from "react-dom/client";
+      import App from "./dist-src/App.js";
+      createRoot(document.getElementById("root")).render(
+        React.createElement(App)
+      );
+    </script>
+    <link rel="stylesheet" href="./dist-src/styles.css" />
+  </body></html>

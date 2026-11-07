@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>历史事件线 M0</title>
+    <link rel="stylesheet" href="/dist-src/styles.css" />
+    <!--
+      M0 预览入口：不经打包器，直接用浏览器 import 编译产物。
+      开发时请用 Vite（npm run dev），入口是 src/main.tsx。
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import App from "/dist-src/App.js";
+      import React from "react";
+      import { createRoot } from "react-dom/client";
+      createRoot(document.getElementById("root")).render(React.createElement(App));
+    </script>
+  </body>
+</html>

@@ -1,0 +1,17 @@
+# ---------- 操作系统 ----------
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ---------- 编辑器 / IDE ----------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ---------- 临时文件 ----------
+*.tmp
+*.bak
+
+# 注：app/ 与 app/src-tauri/ 下各有一份更具体的 .gitignore，
+# 分别忽略 node_modules、dist、dist-src、.npm-cache 和 Rust 的 target、gen/schemas。
