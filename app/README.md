@@ -118,5 +118,5 @@ node selfcheck/uicheck.mjs        # 4 passed  UI 回归（label 内不得有 but
 | 迷你地图 / 跳转到指定年份 | M5 |
 | 移动端触屏手势（双指缩放） | 之后 |
 
-详细设计见 [`../docs/M2-收纳与事件层级.md`](../docs/M2-收纳与事件层级.md) 与
+详细设计见 [`../docs/事件层级与收纳设计.md`](../docs/事件层级与收纳设计.md) 与
 [`../docs/技术选型与数据模型.md`](../docs/技术选型与数据模型.md)。

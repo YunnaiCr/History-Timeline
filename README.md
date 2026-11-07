@@ -1,45 +1,109 @@
 # 历史事件线
 
-一个用于梳理历史事件时间轴的桌面应用。不是甘特图，也不是思维导图——它的核心是**在一条时间轴上把「同一时期发生的一堆事」收得住、放得开**。
+基于 Tauri 2 + React + TypeScript 的桌面端历史时间轴应用，用于梳理、浏览和整理时间跨度很大的历史事件。
 
-![技术栈](https://img.shields.io/badge/Tauri-2-24C8DB) ![React](https://img.shields.io/badge/React-19-61DAFB) ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6)
+![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB)
+![React](https://img.shields.io/badge/React-19-61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6)
+![Platform](https://img.shields.io/badge/Platform-Windows-0078D6)
 
-## 它解决什么
+## 简介
 
-普通时间轴工具遇到历史数据会立刻崩掉：
+历史数据在时间轴上并不好放：公元前 221 年和 1919 年要共处一条轴，跨度相差两千倍；1911–1921 这十年却挤着十几件事；甲午战争持续两年，而黄海海战只有一天。普通时间轴工具在这些地方会迅速变得不可读。
 
-- **跨度极端**：公元前 221 年和 1919 年要放在同一条轴上，差 2000 倍
-- **密集扎堆**：1911–1921 十年里有十几件事，缩小时全叠在一起
-- **尺度不一**：甲午战争持续 2 年，黄海海战只有 1 天
+本项目围绕这些问题设计：
 
-所以这里做了三件事：
-
-| 能力 | 做法 |
-|---|---|
-| **自动收纳** | 屏幕上距离 < 30px 的节点自动合成 `N ↓` 徽标，放大自动散开；点徽标直接放大到那一段 |
-| **父子事件** | 父事件画成区间带，子事件收缩到轴线上方的一条迷你带里，按真实时间排布 |
-| **双轴筛选** | 类别（单值、必填）与标签（多值、可选）互相独立，可叠加过滤 |
+- **自动收纳** —— 屏幕上靠得太近的节点会自动合并成一个带数量的标记，缩放后自动散开
+- **事件层级** —— 长周期事件可以包含具体到某天的事件，两者各有合适的时间尺度
+- **双重分类** —— 类别与标签彼此独立，可以组合过滤
 
 ## 功能
 
-- **时间轴**：锚定光标缩放、拖拽平移、首屏自动铺满全部数据
-- **收纳**：自动聚簇 + 点簇放大 + 重要度分级（低缩放先收次要事件）
-- **层级**：父子事件展开、区间事件色带
-- **筛选**：类别多选、标签多选
-- **编辑**：事件增删改、指定父事件、类别/标签管理
-- **表格视图**：排序、搜索、父子缩进、双击回到时间轴定位
-- **数据**：JSON 导出/导入（支持**合并**或覆盖）、本地自动保存
+### 时间轴
 
-## 快速开始
+- 横向缩放与拖拽平移，支持鼠标与键盘操作
+- 打开时自动适配全部数据的年代范围
+- 自动收纳：密集处合并为标记，点击即放大到该时段
+- 按缩放级别分级显示，低缩放时优先保留重要事件
+- 区间事件以色带呈现
+
+### 事件组织
+
+- **类别**：单值、必填，用于划分事件性质（政治、经济、科技等），可自定义并调整颜色
+- **标签**：多值、可选，用于自由标注，与类别相互独立
+- **父子事件**：一个事件可以包含若干子事件，展开后在轴线上方按真实时间排列
+
+### 编辑与浏览
+
+- 新增、编辑、删除事件，支持公元前后的时间输入
+- 表格视图：排序、搜索、按父子层级缩进，双击回到时间轴定位
+- 类别与标签管理
+
+### 数据
+
+- 自动保存，关闭即持久化
+- JSON 导出与导入，导入支持**合并**（追加到现有数据）或**覆盖**两种模式
+- 导入时自动处理类别、标签的同名复用与 id 冲突
+
+## 安装与运行
+
+### 环境要求
+
+| 依赖 | 版本 |
+|---|---|
+| Node.js | 18 以上 |
+| Rust | stable（MSVC 工具链） |
+| Visual Studio | 2022 或 2026，需勾选「使用 C++ 的桌面开发」 |
+| WebView2 | Windows 10/11 通常已自带 |
+
+### 开发
 
 ```bash
 cd app
 npm install
-npm run tauri dev     # 开发
-npm run tauri build   # 打包
+npm run tauri dev
 ```
 
-环境要求：Rust（msvc 工具链）+ 带「使用 C++ 的桌面开发」工作负载的 Visual Studio。
+### 构建
+
+```bash
+cd app
+npm run tauri build
+```
+
+产物位于 `app/src-tauri/target/release/`。
+
+## 使用说明
+
+| 操作 | 效果 |
+|---|---|
+| 拖动 / 滚轮 | 平移、缩放时间轴 |
+| `←` `→` / `+` `-` | 键盘平移与缩放 |
+| 点击数量标记 | 放大到该时段，收纳的事件自动展开 |
+| 点击事件卡片 | 打开详情面板，可编辑、删除、添加子事件 |
+| 悬停事件卡片 | 显示摘要 |
+| 顶栏类别 / 标签 | 多选筛选 |
+| 顶栏「表格」 | 切换到表格视图 |
+
+## 数据存储
+
+数据保存在本地应用数据目录中：
+
+```
+%LOCALAPPDATA%\com.yunnai.historytimeline\EBWebView\Default\Local Storage
+```
+
+如需备份、迁移或在其他设备使用，请使用「导出 JSON」将数据保存为文件，再通过「导入 JSON」恢复。
+
+## 技术栈
+
+| 层 | 技术 |
+|---|---|
+| 桌面外壳 | Tauri 2 |
+| 界面 | React 19 + TypeScript |
+| 构建 | Vite |
+| 时间模型 | 整数儒略日 |
+| 存储 | localStorage（可选 JSON 导出） |
 
 ## 项目结构
 
@@ -47,44 +111,40 @@ npm run tauri build   # 打包
 app/
 ├── src/
 │   ├── lib/
-│   │   ├── time.ts       儒略日换算、公元前/公元互转
-│   │   ├── viewport.ts   时间 ↔ 像素映射、锚定缩放、首屏适配
-│   │   ├── cluster.ts    聚簇与子事件布局（纯函数）
-│   │   ├── ticks.ts      刻度粒度
-│   │   ├── store.ts      localStorage 持久化
-│   │   └── io.ts         JSON 导入导出、合并
-│   ├── components/       Ruler / CanvasArea / EventDialog / ManageDialog / DataTable
+│   │   ├── time.ts       时间换算与格式化
+│   │   ├── viewport.ts   时间与像素的映射、缩放、平移
+│   │   ├── cluster.ts    收纳与层级布局
+│   │   ├── ticks.ts      刻度生成
+│   │   ├── store.ts      本地持久化
+│   │   └── io.ts         JSON 导入导出
+│   ├── components/       时间轴、刻度尺、编辑弹窗、表格等
 │   └── data/             示例数据
-├── src-tauri/            Tauri 2 壳
-└── selfcheck/            8 组自检，共 105 项
+├── src-tauri/            Tauri 应用外壳
+└── selfcheck/            自动化校验脚本
 ```
 
-## 自检
+## 开发自检
+
+项目包含一组不依赖浏览器的校验脚本，覆盖时间换算、收纳布局、存储与导入导出等逻辑：
 
 ```bash
 cd app
 node build-m0.mjs
-node selfcheck/timecheck.mjs       # 时间换算
-node selfcheck/bcecheck.mjs        # 公元前/公元
-node selfcheck/clustercheck.mjs    # 聚簇与层级
-node selfcheck/childbandcheck.mjs  # 子事件布局
-node selfcheck/fitcheck.mjs        # 首屏适配
-node selfcheck/storecheck.mjs      # 存储容错
-node selfcheck/iocheck.mjs         # 导入导出与合并
-node selfcheck/uicheck.mjs         # UI 回归
+node selfcheck/timecheck.mjs
+node selfcheck/bcecheck.mjs
+node selfcheck/clustercheck.mjs
+node selfcheck/childbandcheck.mjs
+node selfcheck/fitcheck.mjs
+node selfcheck/storecheck.mjs
+node selfcheck/iocheck.mjs
+node selfcheck/uicheck.mjs
 ```
 
 ## 文档
 
 - [技术选型与数据模型](docs/技术选型与数据模型.md)
-- [收纳与事件层级设计](docs/M2-收纳与事件层级.md)
+- [收纳与事件层级设计](docs/事件层级与收纳设计.md)
 
-## 设计笔记
+## 许可
 
-几个踩过坑、值得记下来的点：
-
-- **时间用儒略日整数存**，不用 Date。公元前后的加减不会断，也没有时区问题。
-- **界面用历史纪年，内部用天文纪年**（year 0 = 公元前 1 年）。表单里是「公元前 / 公元」下拉，用户只填正整数。
-- **收纳阈值必须是像素，不是时间**。这样缩小时自动收、放大时自动散，不需要额外的"节点缩放"概念。
-- **子事件带贴轴固定高度、最多 3 层**。早期按"一人一行"往上堆，超过 3 个就越过轴线掉进卡片区。
-- **卡片浮起效果必须挂在 CSS `:hover` 上**。挂在 JS 状态上时，指针移到卡片外的操作按钮会导致卡片掉层、按钮被邻居盖住。
+暂未指定。
