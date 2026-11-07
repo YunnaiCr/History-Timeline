@@ -322,6 +322,23 @@ body {
 }
 
 /* 兼容：仍保留 .hover 类（例如将来做键盘聚焦选中） */
+/* 紧凑模式：轨道不够时隐藏标签行，卡片变矮，能多放几轨 */
+.event-card.compact {
+  padding: 4px 9px 4px 11px;
+}
+
+.event-card.compact .event-tags {
+  display: none;
+}
+
+.event-card.compact .event-date {
+  margin-top: 1px;
+}
+
+.event-card.compact .card-actions {
+  bottom: -8px;
+}
+
 .event-card.hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
@@ -1083,6 +1100,49 @@ body {
   font-size: 11px;
   color: var(--muted);
   line-height: 1.5;
+}
+
+/* ---------- 保存失败提示条 ---------- */
+.save-error {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 14px;
+  background: rgba(224, 92, 92, 0.14);
+  border-top: 1px solid rgba(224, 92, 92, 0.4);
+  color: #ffb3b3;
+  font-size: 12px;
+}
+
+.save-error-icon {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #d25757;
+  color: #fff;
+  font-weight: 700;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.save-error-close {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: #ffb3b3;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.save-error-close:hover {
+  background: rgba(224, 92, 92, 0.25);
 }
 
 /* ---------- 底栏数据操作 ---------- */

@@ -176,3 +176,40 @@ export function layoutClusterRow(
     return left;
   });
 }
+
+/** 同轨两张卡片之间至少留的缝 */
+export const LANE_GAP = 6;
+
+export interface LaneSlot {
+  lane: number;
+  /** 最终 x 坐标；轨道不够时会大于输入的 x（向右顺延） */
+  x: number;
+}
+
+/**
+ * 卡片轨道分配：横向区间不重叠就复用同一轨。
+ *
+ * 关键不变量：**同一轨内任意两张卡片的横向区间不相交**。
+ * 轨道全满时不再"复用最空的那条"（那样会叠在一起），
+ * 而是把卡片沿该轨向右顺延——代价是时间位置略有偏移，但不会看不清。
+ */
+export function assignLanes(
+  items: { x: number; width: number }[],
+  laneCount: number,
+  gap = LANE_GAP
+): LaneSlot[] {
+  const tails: number[] = new Array(Math.max(1, laneCount)).fill(-Infinity);
+
+  return items.map((it) => {
+    let lane = tails.findIndex((t) => t < it.x - gap);
+    let x = it.x;
+
+    if (lane === -1) {
+      // 没有空轨：挑最早空出来的那条，横向顺延到不重叠的位置
+      lane = tails.indexOf(Math.min(...tails));
+      x = Math.max(it.x, tails[lane] + gap);
+    }
+    tails[lane] = x + it.width;
+    return { lane, x };
+  });
+}

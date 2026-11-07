@@ -53,9 +53,15 @@ export default function App() {
   const dragRef = useRef<{ x0: number; y0: number; startJdn: number; moved: boolean } | null>(null);
   const [canvasH, setCanvasH] = useState(600);
 
+  // 保存失败提示（localStorage 写满或不可用时必须让用户知道，否则会静默丢数据）
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   // 任何数据变更都自动落盘
   useEffect(() => {
-    saveData(data);
+    const ok = saveData(data);
+    setSaveError(
+      ok ? null : "自动保存失败：本地存储可能已满或不可用。请立即用「导出 JSON」备份当前数据。"
+    );
   }, [data]);
 
   // 首次拿到真实宽度后，按全量数据自适应（用 layoutEffect 避免闪一下旧画面）
@@ -213,6 +219,32 @@ export default function App() {
     setDialogOpen(false);
     setEditing(null);
     setDialogParentId(undefined);
+  }, []);
+
+  /**
+   * 把某个事件框到视野中间。
+   *
+   * 之前用固定 ±400 天，跨度差别很大的事件（一天的事 vs 四年的战争）框出来的
+   * 视野都很别扭。现在按"事件占屏幕约 1/3、且至少显示一年"来算：
+   * 点事件看到前后半年，长事件看到它本身加两侧余量。
+   */
+  const focusEvent = useCallback((ev: TimelineEvent) => {
+    setView("timeline");
+    setVp((v) => {
+      const start = ev.startJdn;
+      const end = ev.endJdn ?? start;
+      const span = Math.max(1, end - start);
+      const mid = (start + end) / 2;
+      const visibleDays = Math.max(365, span * 3); // 至少一年，事件占中间约 1/3
+      return fitRange(
+        mid - visibleDays / 2,
+        mid + visibleDays / 2,
+        v.width,
+        0.02,
+        MIN_PX_PER_DAY,
+        MAX_PX_PER_DAY
+      );
+    });
   }, []);
 
   const handleReset = () => {
@@ -436,13 +468,22 @@ export default function App() {
             onEdit={openEdit}
             onDelete={deleteEvent}
             onSelect={(ev) => {
-              // 双击行：切回时间轴并把视口对准这个事件
-              setView("timeline");
-              setVp((v) => fitRange(ev.startJdn - 400, (ev.endJdn ?? ev.startJdn) + 400, v.width, 0.3, MIN_PX_PER_DAY, MAX_PX_PER_DAY));
+              // 双击行：切回时间轴，把该事件框到视野中间
+              focusEvent(ev);
             }}
           />
         )}
       </main>
+
+      {saveError && (
+        <div className="save-error" role="alert">
+          <span className="save-error-icon">!</span>
+          <span>{saveError}</span>
+          <button className="save-error-close" onClick={() => setSaveError(null)}>
+            ×
+          </button>
+        </div>
+      )}
 
       <footer className="bottombar">
         <div className="hint">

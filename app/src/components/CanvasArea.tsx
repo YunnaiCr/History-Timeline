@@ -4,6 +4,7 @@ import type { Viewport } from "../lib/viewport";
 import { jdnToX } from "../lib/viewport";
 import type { Category, Tag, TimelineEvent } from "../data/sampleData";
 import {
+  assignLanes,
   buildNodes,
   groupChildren,
   importanceThresholdFor,
@@ -34,28 +35,58 @@ interface Props {
 const GUTTER = 16;
 const LINE_Y = 190; // 主轴线：上方留给子事件带，下方留给卡片轨道
 const CARD_TOP = LINE_Y + 14;
-const LANE_H = 62;
+
+/** 轨道高度：空间够时用 62px，卡片多时自动压缩到 44px 以容纳更多轨道 */
+const LANE_H_MAX = 62;
+const LANE_H_MIN = 44;
 
 /** 子事件带：轴线正上方，最多 3 层，永远不会越过轴线 */
 const CHILD_ROWS = 3;
 const CHILD_ROW_H = 20;
 const CHILD_GAP_Y = 14;
 
-/** 粗略估算卡片宽度（标题 14px/字 + padding），用于轨道排布避让 */
-function estimateWidth(title: string): number {
-  return Math.min(230, title.length * 14 + 34);
+/**
+ * 卡片宽度测量。
+ *
+ * 之前用 `title.length * 14` 估算，中英混排和标点会估偏，
+ * 导致轨道避让算错、卡片贴在一起。改用 Canvas 的 measureText 实测，
+ * 并按文本缓存（同一标题只量一次）。
+ */
+const measureCache = new Map<string, number>();
+let measureCtx: CanvasRenderingContext2D | null | undefined;
+
+const CARD_FONT =
+  '600 13px system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif';
+const CARD_PADDING = 34; // 左右内边距 + 边框
+const CARD_MAX_W = 240;
+
+function measureWidth(title: string): number {
+  const cached = measureCache.get(title);
+  if (cached !== undefined) return cached;
+
+  if (measureCtx === undefined) {
+    measureCtx = document.createElement("canvas").getContext("2d");
+  }
+  let textW: number;
+  if (measureCtx) {
+    measureCtx.font = CARD_FONT;
+    textW = measureCtx.measureText(title).width;
+  } else {
+    textW = title.length * 13; // 极端兜底：拿不到 Canvas 上下文
+  }
+  const w = Math.min(CARD_MAX_W, Math.max(64, textW + CARD_PADDING));
+  measureCache.set(title, w);
+  return w;
 }
 
-/** 贪心轨道分配：横向区间不重叠就复用同一轨 */
-function assignLanes(items: { x: number; width: number }[], laneCount: number): number[] {
-  const tails: number[] = new Array(Math.max(1, laneCount)).fill(-Infinity);
-  return items.map((it) => {
-    let lane = tails.findIndex((t) => t < it.x - 4);
-    if (lane === -1) lane = tails.indexOf(Math.min(...tails));
-    tails[lane] = it.x + it.width;
-    return lane;
-  });
-}
+/**
+ * 贪心轨道分配：横向区间不重叠就复用同一轨。
+ *
+ * 关键改动：轨道全满时不再"复用最空的那条"（那样卡片会叠在一起），
+ * 而是把卡片沿该轨向右顺延到不重叠的位置。代价是这张卡的时间位置略有偏移，
+ * 但保证任何情况下都不会出现两张卡片压在一起。
+ * 实现已移到 lib/cluster.ts，便于自检。
+ */
 
 interface SelectedState {
   ev: TimelineEvent;
@@ -127,8 +158,6 @@ export default function CanvasArea({
 
   const nodes = useMemo(() => buildNodes(vp, visible, threshold), [vp, visible, threshold]);
 
-  const laneCount = Math.max(1, Math.floor((height - CARD_TOP - 16) / LANE_H));
-
   /**
    * 两套独立的布点：
    *  - 卡片（普通事件）排到轴线下方的轨道里，逐轨避让
@@ -147,22 +176,51 @@ export default function CanvasArea({
         node: n,
         x: GUTTER + n.x,
         width: Math.max(
-          estimateWidth(n.event.title),
+          measureWidth(n.event.title),
           n.event.endJdn ? (n.event.endJdn - n.event.startJdn) * vp.pxPerDay : 0
         ),
       }));
-    const lanes = assignLanes(cardItems, laneCount);
-    const placedCards = cardItems.map((it, i) => ({ ...it, lane: lanes[i] }));
+
+    const availH = Math.max(LANE_H_MIN, height - CARD_TOP - 16);
+
+    /**
+     * 试排一次：给定轨高能放多少轨、有多少张卡因为轨道不够而被顺延。
+     * 顺延越少越好（顺延意味着这张卡的时间位置被推离了真实位置）。
+     */
+    const tryLayout = (laneH: number) => {
+      const laneCount = Math.max(1, Math.floor(availH / laneH));
+      const res = assignLanes(cardItems, laneCount);
+      const shifted = res.reduce((n, r, i) => n + (r.x > cardItems[i].x + 0.5 ? 1 : 0), 0);
+      const used = res.reduce((m, r) => Math.max(m, r.lane), 0) + 1;
+      return { laneH, laneCount, res, shifted, used };
+    };
+
+    // 先按正常高度排；有顺延就试试紧凑模式（卡片隐藏标签行，能多放几轨）
+    let best = tryLayout(LANE_H_MAX);
+    let compact = false;
+    if (best.shifted > 0) {
+      const tight = tryLayout(LANE_H_MIN + 2);
+      if (tight.shifted < best.shifted) {
+        best = tight;
+        compact = true;
+      }
+    }
+
+    const placedCards = cardItems.map((it, i) => ({
+      ...it,
+      x: best.res[i].x,
+      lane: best.res[i].lane,
+    }));
 
     // ---- 簇：单行贴在轴线上，只做横向顺延 ----
     const clusterNodes = nodes.filter(isCluster).sort((a, b) => a.x - b.x);
     const clusterXs = layoutClusterRow(clusterNodes.map((n) => n.x), vp.width);
     const placedClusters = clusterNodes.map((n, i) => ({ node: n, x: clusterXs[i] }));
 
-    return { placedCards, placedClusters };
-  }, [nodes, vp.pxPerDay, vp.width, laneCount]);
+    return { placedCards, placedClusters, laneH: best.laneH, compact };
+  }, [nodes, vp.pxPerDay, vp.width, height]);
 
-  const { placedCards, placedClusters } = layout;
+  const { placedCards, placedClusters, laneH, compact } = layout;
 
   // 展开只由用户点击决定（缩放到多大都不会自动展开，避免"点了收起又弹开"）
   const isOpen = (id: string) => expanded.has(id);
@@ -490,7 +548,7 @@ export default function CanvasArea({
 
       {/* ---------- 卡片区：轴线下方 ---------- */}
       {placedCards.map(({ node, lane, x }) => {
-        const cardTop = CARD_TOP + lane * LANE_H;
+        const cardTop = CARD_TOP + lane * laneH;
         const ev = node.event;
         const cat = catMap.get(ev.categoryId);
         const kids = childMap.get(ev.id) ?? [];
@@ -507,7 +565,11 @@ export default function CanvasArea({
             )}
 
               <div
-                className={"event-card" + (kids.length ? " has-kids" : "")}
+                className={
+                  "event-card" +
+                  (kids.length ? " has-kids" : "") +
+                  (compact ? " compact" : "")
+                }
                 style={{ left: x, top: cardTop, borderLeftColor: cat?.color ?? "#999" }}
                 onMouseEnter={(e) => scheduleHover(ev, e.currentTarget as HTMLElement)}
                 onMouseLeave={hideHover}

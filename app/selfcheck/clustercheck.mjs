@@ -3,7 +3,7 @@
  * 运行前先 `node build-m0.mjs` 生成 dist-src/lib/cluster.js。
  * 运行：node selfcheck/clustercheck.mjs
  */
-import { buildNodes, importanceThresholdFor, groupChildren, isCluster, layoutClusterRow, CLUSTER_PX } from "../dist-src/lib/cluster.js";
+import { buildNodes, importanceThresholdFor, groupChildren, isCluster, layoutClusterRow, assignLanes, CLUSTER_PX, LANE_GAP } from "../dist-src/lib/cluster.js";
 import { toJdn } from "../dist-src/lib/time.js";
 
 let ok = 0;
@@ -99,5 +99,55 @@ check("单个簇位置保持", Math.abs(single[0] - (123 + 16)) < 1e-6, single[0
 const edge = layoutClusterRow([1180, 1190, 1199], W);
 check("右边缘簇不溢出", edge.every((v) => v + CW <= W), edge.map((v) => v.toFixed(0)).join(","));
 
+// ============ 卡片轨道分配：核心不变量是"同轨不重叠" ============
+
+/** 检查结果里同一轨的任意两张卡是否横向相交 */
+function hasOverlap(items, slots) {
+  const byLane = new Map();
+  slots.forEach((s, i) => {
+    const arr = byLane.get(s.lane) ?? [];
+    arr.push({ x: s.x, w: items[i].width });
+    byLane.set(s.lane, arr);
+  });
+  for (const arr of byLane.values()) {
+    arr.sort((a, b) => a.x - b.x);
+    for (let i = 1; i < arr.length; i++) {
+      if (arr[i].x < arr[i - 1].x + arr[i - 1].w - 0.001) return true;
+    }
+  }
+  return false;
+}
+
+// 13. 正常情况：轨道够用，位置不被挪动
+const spread = [
+  { x: 0, width: 100 },
+  { x: 150, width: 100 },
+  { x: 300, width: 100 },
+];
+const s1 = assignLanes(spread, 3);
+check("轨道够用时位置不变", s1.every((s, i) => s.x === spread[i].x));
+check("轨道够用时不重叠", !hasOverlap(spread, s1));
+
+// 14. 极端拥挤：20 张卡全在同一位置，只有 2 条轨道
+const crowded = Array.from({ length: 20 }, () => ({ x: 500, width: 120 }));
+const s2 = assignLanes(crowded, 2);
+check("拥挤时用满全部轨道", new Set(s2.map((s) => s.lane)).size === 2);
+check("拥挤时不重叠（关键修复）", !hasOverlap(crowded, s2), "旧实现这里会判失败");
+
+// 15. 顺延保持顺序：后面的卡不会跑到前面的左边
+check("顺延时顺序不乱", s2.every((s, i) => i === 0 || s.x >= s2[i - 1].x - 0.001));
+
+// 16. 顺延确实发生了（说明不是简单丢弃）
+check("拥挤时发生横向顺延", s2.some((s, i) => s.x > crowded[i].x));
+
+// 17. 单轨也能排
+const oneLane = Array.from({ length: 5 }, () => ({ x: 0, width: 80 }));
+const s3 = assignLanes(oneLane, 1);
+check("单轨多卡不重叠", !hasOverlap(oneLane, s3));
+check("单轨最小间距生效", s3[1].x - (s3[0].x + 80) >= LANE_GAP - 0.001, `间隔 ${(s3[1].x - s3[0].x - 80).toFixed(1)}px`);
+
+// 18. 空输入安全
+check("空输入返回空数组", assignLanes([], 3).length === 0);
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === 18 ? 0 : 1);
+process.exit(ok === 27 ? 0 : 1);
