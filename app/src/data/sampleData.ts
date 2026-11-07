@@ -311,6 +311,20 @@ export const events: TimelineEvent[] = [
     summary: "卢沟桥事变，全面抗战爆发。",
     importance: 1,
   },
+  // 抗日战争：一个真正的区间父事件（1937-07 ~ 1945-09），
+  // 下面挂具体战役。「抗日战争胜利」是区间内的一个点，也作为子事件。
+  {
+    id: "e15p",
+    title: "抗日战争",
+    startJdn: toJdn(1937, 7, 7),
+    endJdn: toJdn(1945, 9, 2),
+    dateText: "1937–1945年",
+    categoryId: "war",
+    tagIds: ["t-zg"],
+    summary: "中国全面抗战，八年战争。",
+    importance: 1,
+    expandMode: "span",
+  },
   {
     id: "e15",
     title: "抗日战争胜利",
@@ -320,7 +334,7 @@ export const events: TimelineEvent[] = [
     tagIds: ["t-zg"],
     summary: "日本宣布无条件投降。",
     importance: 1,
-    expandMode: "span",
+    parentId: "e15p",
   },
   {
     id: "e15a",
@@ -331,7 +345,7 @@ export const events: TimelineEvent[] = [
     tagIds: ["t-zg", "t-minguo"],
     summary: "全面抗战起点。",
     importance: 2,
-    parentId: "e15",
+    parentId: "e15p",
   },
   {
     id: "e15b",
@@ -343,7 +357,7 @@ export const events: TimelineEvent[] = [
     tagIds: ["t-zg", "t-minguo"],
     summary: "正面战场的重大胜利。",
     importance: 2,
-    parentId: "e15",
+    parentId: "e15p",
   },
   {
     id: "e15c",
@@ -355,7 +369,7 @@ export const events: TimelineEvent[] = [
     tagIds: ["t-zg"],
     summary: "八路军华北大规模破袭战。",
     importance: 2,
-    parentId: "e15",
+    parentId: "e15p",
   },
   {
     id: "e15d",
@@ -367,7 +381,7 @@ export const events: TimelineEvent[] = [
     tagIds: ["t-zg", "t-minguo"],
     summary: "日军攻陷南京后的暴行。",
     importance: 1,
-    parentId: "e15",
+    parentId: "e15p",
   },
   {
     id: "e16",
@@ -529,24 +543,11 @@ export const events: TimelineEvent[] = [
   },
 
   // ============================================================
-  // 父子事件示范（最容易看出来的一组）
-  //   父：第一次世界大战（1914-07 ~ 1918-11，跨度 4 年多，画成一条长区间带）
+  // 父子事件示范：给 e24「第一次世界大战」挂 6 个子事件
+  //   父：1914-07 ~ 1918-11，跨度 4 年多，画成一条长区间带
   //   子：萨拉热窝事件 / 马恩河 / 凡尔登 / 索姆河 / 俄国退出 / 康边停战
-  // 打开后看 1914–1918 这段：卡片标题右边会显示 ▸6，点它展开，
-  // 子事件会出现在轴线上方、按各自的真实时间位置排开。
+  // 注意：父事件复用上面已有的 e24，不要新建同标题的事件（会造成标题重复）。
   // ============================================================
-  {
-    id: "d-ww1",
-    title: "第一次世界大战",
-    startJdn: toJdn(1914, 7, 28),
-    endJdn: toJdn(1918, 11, 11),
-    dateText: "1914年7月 – 1918年11月",
-    categoryId: "war",
-    tagIds: ["t-world", "t-ww1"],
-    summary: "欧洲列强体系崩溃、全球格局重组的四年多战争。点卡片展开，可看到从萨拉热窝到停战的全过程。",
-    importance: 1,
-    expandMode: "span",
-  },
   {
     id: "d-sarajevo",
     title: "萨拉热窝事件",
@@ -555,9 +556,8 @@ export const events: TimelineEvent[] = [
     dateText: "1914年6月28日",
     categoryId: "politics",
     tagIds: ["t-world", "t-ww1"],
-    summary: "奥匈皇储斐迪南大公遇刺，一个多月后战争全面爆发。",
+    summary: "奥匈皇储斐迪南大公遇刺，一个多月后战争全面爆发。作为战争的导火索，它本身不属于战争过程，所以是独立事件而非子事件。",
     importance: 2,
-    parentId: "d-ww1",
   },
   {
     id: "d-marne",
@@ -569,7 +569,7 @@ export const events: TimelineEvent[] = [
     tagIds: ["t-world", "t-ww1"],
     summary: "挫败施里芬计划，西线转入阵地战。",
     importance: 2,
-    parentId: "d-ww1",
+    parentId: "e24",
   },
   {
     id: "d-verdun",
@@ -581,7 +581,7 @@ export const events: TimelineEvent[] = [
     tagIds: ["t-world", "t-ww1"],
     summary: "绞肉机，双方伤亡约 70 万。",
     importance: 1,
-    parentId: "d-ww1",
+    parentId: "e24",
   },
   {
     id: "d-somme",
@@ -593,7 +593,7 @@ export const events: TimelineEvent[] = [
     tagIds: ["t-world", "t-ww1"],
     summary: "坦克首次投入实战。",
     importance: 2,
-    parentId: "d-ww1",
+    parentId: "e24",
   },
   {
     id: "d-russia",
@@ -605,7 +605,7 @@ export const events: TimelineEvent[] = [
     tagIds: ["t-world", "t-ww1"],
     summary: "十月革命后，布尔什维克政府宣布退出，苏俄与德国单独停战。",
     importance: 2,
-    parentId: "d-ww1",
+    parentId: "e24",
   },
   {
     id: "d-armistice",
@@ -617,6 +617,6 @@ export const events: TimelineEvent[] = [
     tagIds: ["t-world", "t-ww1"],
     summary: "当天上午 11 时停火，战争结束。",
     importance: 2,
-    parentId: "d-ww1",
+    parentId: "e24",
   },
 ];

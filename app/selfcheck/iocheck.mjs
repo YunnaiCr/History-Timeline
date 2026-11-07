@@ -50,10 +50,10 @@ check(
 check("往返类别数一致", round.data.categories.length === seed.categories.length);
 check("往返标签数一致", round.data.tags.length === seed.tags.length);
 
-const ww1 = round.data.events.find((e) => e.id === "d-ww1");
-const kids = round.data.events.filter((e) => e.parentId === "d-ww1");
+const ww1 = round.data.events.find((e) => e.id === "e24");
+const kids = round.data.events.filter((e) => e.parentId === "e24");
 check("区间事件的 endJdn 保住", !!ww1 && typeof ww1.endJdn === "number");
-check("父子关系保住", kids.length === 6, `${kids.length} 个子事件`);
+check("父子关系保住", kids.length === 5, `${kids.length} 个子事件`);
 
 const e7 = round.data.events.find((e) => e.id === "e7");
 check("标签数组保住", !!e7 && e7.tagIds.length > 0);
@@ -157,5 +157,91 @@ check(
   `${mergedKid?.parentId}`
 );
 
+// ============ 可读格式（人手写） ============
+const { parseDateIn, formatDateOut } = await import("../dist-src/lib/io.js");
+const { toJdn, fromJdn, toHistoricalYear } = await import("../dist-src/lib/time.js");
+
+// 19. 日期解析：各种写法都要认
+check("解析 1911-10-10", parseDateIn("1911-10-10") === toJdn(1911, 10, 10));
+check("解析 仅年份", parseDateIn("1911") === toJdn(1911, 1, 1));
+check("解析 年月", parseDateIn("1911-10") === toJdn(1911, 10, 1));
+check("解析 公元前221", parseDateIn("-221") === toJdn(-220, 1, 1));
+check("解析 公元前221-01-01", parseDateIn("-221-01-01") === toJdn(-220, 1, 1));
+check("解析 中文公元前", parseDateIn("公元前221年") === toJdn(-220, 1, 1));
+check("解析 中文年月日", parseDateIn("1911年10月10日") === toJdn(1911, 10, 10));
+check("解析非法输入返回 null", parseDateIn("随便写的") === null);
+
+// 20. 导出格式：日期必须是人能读的，不能是儒略日数字
+const probe = formatDateOut(toJdn(1911, 10, 10));
+check("导出公元日期可读", probe === "1911-10-10", probe);
+const probeBc = formatDateOut(toJdn(-220, 1, 1));
+check("导出公元前日期可读", probeBc === "-221-01-01", probeBc);
+
+// 21. 导出 → 导入 往返，公元 / 公元前都要保真
+let dateRoundTrip = true;
+for (const jdn of [toJdn(-220, 1, 1), toJdn(1, 1, 1), toJdn(1911, 10, 10), toJdn(2001, 12, 11)]) {
+  if (parseDateIn(formatDateOut(jdn)) !== jdn) dateRoundTrip = false;
+}
+check("日期导出导入往返无损", dateRoundTrip);
+
+// 22. 人手写的最小文件：没有 id、没有 categories/tags 数组
+const handwritten = JSON.stringify({
+  events: [
+    { title: "我加的事件", start: "1911-10-10", category: "政治", tags: ["我的标签"] },
+    { title: "公元前的事", start: "-221", category: "政治" },
+  ],
+});
+const hw = parseImport(handwritten, seed);
+check("手写最小文件可导入", hw.ok === true, hw.error ?? "");
+check("手写事件自动生成 id", hw.ok && hw.data.events.every((e) => typeof e.id === "string" && e.id.length > 0));
+// 类别名与已有类别同名时应当复用，而不是新建一个重复的
+const hwCat = hw.ok && hw.data.categories.find((c) => c.id === hw.data.events[0].categoryId);
+check("手写类别名复用同名类别", !!hwCat && hwCat.name === "政治", hwCat?.name);
+check(
+  "没有产生重复类别",
+  hw.ok && new Set(hw.data.categories.map((c) => c.name)).size === hw.data.categories.length,
+  hw.data ? `${hw.data.categories.length} 个` : ""
+);
+check("手写标签名自动创建", hw.ok && hw.data.events[0].tagIds.length === 1);
+check("手写公元前日期算对了", hw.ok && fromJdn(hw.data.events[1].startJdn).year === -220);
+
+// 23. dateText 要保留（"约公元前1046年" 这类模糊表述不能被覆盖）
+const fuzzy = JSON.stringify({
+  events: [{ title: "牧野之战", start: "-1046", dateText: "约公元前1046年" }],
+});
+const fz = parseImport(fuzzy, seed);
+check("自定义 dateText 被保留", fz.ok && fz.data.events[0].dateText === "约公元前1046年", fz.data?.events[0].dateText);
+
+// 24. parent 可以用标题引用
+const withParent = JSON.stringify({
+  events: [
+    { title: "甲午战争", start: "1894-07-25", end: "1895-04-17", category: "战争" },
+    { title: "黄海海战", start: "1894-09-17", category: "战争", parent: "甲午战争" },
+  ],
+});
+const wp = parseImport(withParent, seed);
+const parentEv = wp.ok && wp.data.events.find((e) => e.title === "甲午战争");
+const kidEv = wp.ok && wp.data.events.find((e) => e.title === "黄海海战");
+check("parent 用标题能解析", !!kidEv && !!parentEv && kidEv.parentId === parentEv.id);
+
+// 25. 错误信息要说清是第几条、错在哪
+const badDate = parseImport(JSON.stringify({ events: [{ title: "x", start: "不是日期" }] }), seed);
+check("坏日期报错含条号", badDate.ok === false && badDate.error.includes("第 1 条"), badDate.error);
+const noStart = parseImport(JSON.stringify({ events: [{ title: "x" }] }), seed);
+check("缺 start 报错", noStart.ok === false, noStart.error);
+const badEnd = parseImport(
+  JSON.stringify({ events: [{ title: "x", start: "1911", end: "1910" }] }),
+  seed
+);
+check("结束早于开始被拒", badEnd.ok === false, badEnd.error);
+
+// 26. 导出再导入：事件数 / 类别 / 标签 / 区间 / 父子 全部一致
+const rt = parseImport(serialize(seed), seed);
+check("导出→导入事件数一致", rt.ok && rt.data.events.length === seed.events.length);
+const rtWw1 = rt.data.events.find((e) => e.title === "第一次世界大战");
+const rtKids = rt.data.events.filter((e) => e.parentId === rtWw1.id);
+check("导出→导入区间保住", !!rtWw1 && !!rtWw1.endJdn);
+check("导出→导入父子保住", rtKids.length === 5, `${rtKids.length}`);
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === 30 ? 0 : 1);
+process.exit(ok === 55 ? 0 : 1);

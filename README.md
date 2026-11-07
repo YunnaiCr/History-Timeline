@@ -93,7 +93,9 @@ npm run tauri build
 %LOCALAPPDATA%\com.yunnai.historytimeline\EBWebView\Default\Local Storage
 ```
 
-如需备份、迁移或在其他设备使用，请使用「导出 JSON」将数据保存为文件，再通过「导入 JSON」恢复。
+如需备份、迁移或在其他设备使用，请使用「导出 JSON」将数据保存为文件，再通过「导入 JSON」恢复。导入支持**合并**（追加到现有数据）和**覆盖**（整体替换）两种模式。
+
+导出的 JSON 是**可手写**的：日期写成 `1911-10-10` 或 `-221`，类别和标签用名称。也可以只用记事本写几条事件再导入。格式说明见 [JSON 数据格式](docs/JSON格式.md)。
 
 ## 技术栈
 
@@ -142,6 +144,7 @@ node selfcheck/uicheck.mjs
 
 ## 文档
 
+- [JSON 数据格式](docs/JSON格式.md)
 - [技术选型与数据模型](docs/技术选型与数据模型.md)
 - [收纳与事件层级设计](docs/事件层级与收纳设计.md)
 
