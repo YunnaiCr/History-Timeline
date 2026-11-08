@@ -19,7 +19,7 @@
  *   - 子事件的 parent 会跟着重映射，父子关系不会断
  */
 import { makeId, type DataFile } from "./store";
-import type { Category, Tag, TimelineEvent } from "../data/sampleData";
+import type { Category, Tag, TimelineEvent } from "../data/schema";
 import { fromJdn, toJdn, fromHistoricalYear, toHistoricalYear } from "./time";
 
 export const EXPORT_VERSION = 1;

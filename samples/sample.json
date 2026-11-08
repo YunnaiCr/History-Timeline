@@ -1,0 +1,746 @@
+{
+  "version": 1,
+  "exportedAt": "2026-11-08T06:09:05.161Z",
+  "categories": [
+    {
+      "id": "politics",
+      "name": "政治",
+      "color": "#e05c5c"
+    },
+    {
+      "id": "economy",
+      "name": "经济",
+      "color": "#4f9d69"
+    },
+    {
+      "id": "science",
+      "name": "科技",
+      "color": "#4a7fd4"
+    },
+    {
+      "id": "culture",
+      "name": "文化",
+      "color": "#b06ab3"
+    },
+    {
+      "id": "war",
+      "name": "战争",
+      "color": "#8a6d3b"
+    }
+  ],
+  "tags": [
+    {
+      "id": "t-zg",
+      "name": "中国史"
+    },
+    {
+      "id": "t-world",
+      "name": "世界史"
+    },
+    {
+      "id": "t-xiandai",
+      "name": "近代"
+    },
+    {
+      "id": "t-minguo",
+      "name": "民国"
+    },
+    {
+      "id": "t-gaige",
+      "name": "改革"
+    },
+    {
+      "id": "t-jishu",
+      "name": "技术突破"
+    },
+    {
+      "id": "t-ww1",
+      "name": "一战"
+    }
+  ],
+  "events": [
+    {
+      "id": "e1",
+      "title": "秦始皇统一六国",
+      "start": "-221-01-01",
+      "dateText": "公元前221年",
+      "category": "政治",
+      "tags": [
+        "中国史"
+      ],
+      "summary": "中国历史上第一个大一统王朝建立，推行郡县制、书同文、车同轨。",
+      "importance": 1
+    },
+    {
+      "id": "e2",
+      "title": "商鞅变法",
+      "start": "-356-01-01",
+      "end": "-338-01-01",
+      "dateText": "公元前356–338年",
+      "category": "政治",
+      "tags": [
+        "中国史",
+        "改革"
+      ],
+      "summary": "废井田、开阡陌，奖励耕战，秦国由弱转强。",
+      "importance": 2
+    },
+    {
+      "id": "e3",
+      "title": "张骞通西域",
+      "start": "-138-01-01",
+      "dateText": "公元前138年",
+      "category": "经济",
+      "tags": [
+        "中国史"
+      ],
+      "summary": "丝绸之路的开端，中原与中亚、西亚的贸易与文化交流。",
+      "importance": 2
+    },
+    {
+      "id": "e4",
+      "title": "造纸术改进",
+      "start": "105-01-01",
+      "dateText": "公元105年",
+      "category": "科技",
+      "tags": [
+        "中国史",
+        "技术突破"
+      ],
+      "summary": "蔡伦改进造纸术，知识传播成本大幅下降。",
+      "importance": 2
+    },
+    {
+      "id": "e5",
+      "title": "甲午战争",
+      "start": "1894-07-25",
+      "end": "1895-04-17",
+      "dateText": "1894–1895年",
+      "category": "战争",
+      "tags": [
+        "中国史",
+        "近代"
+      ],
+      "summary": "北洋水师覆没，签订《马关条约》，刺激变法与近代化。",
+      "importance": 1
+    },
+    {
+      "id": "e5a",
+      "title": "丰岛海战",
+      "start": "1894-07-25",
+      "dateText": "1894年7月25日",
+      "category": "战争",
+      "tags": [
+        "中国史",
+        "近代"
+      ],
+      "summary": "甲午战争的第一场海战，日舰袭击清军运兵船。",
+      "importance": 3,
+      "parent": "e5"
+    },
+    {
+      "id": "e5b",
+      "title": "黄海海战",
+      "start": "1894-09-17",
+      "dateText": "1894年9月17日",
+      "category": "战争",
+      "tags": [
+        "中国史",
+        "近代"
+      ],
+      "summary": "大东沟海战，北洋舰队主力遭受重创。",
+      "importance": 2,
+      "parent": "e5"
+    },
+    {
+      "id": "e5c",
+      "title": "威海卫之战",
+      "start": "1895-01-20",
+      "end": "1895-02-17",
+      "dateText": "1895年1–2月",
+      "category": "战争",
+      "tags": [
+        "中国史",
+        "近代"
+      ],
+      "summary": "北洋水师全军覆没。",
+      "importance": 2,
+      "parent": "e5"
+    },
+    {
+      "id": "e5d",
+      "title": "《马关条约》签订",
+      "start": "1895-04-17",
+      "dateText": "1895年4月17日",
+      "category": "政治",
+      "tags": [
+        "中国史",
+        "近代"
+      ],
+      "summary": "割台、赔款、开埠，东亚格局改变。",
+      "importance": 2,
+      "parent": "e5"
+    },
+    {
+      "id": "e6",
+      "title": "戊戌变法",
+      "start": "1898-06-11",
+      "end": "1898-09-21",
+      "dateText": "1898年6–9月",
+      "category": "政治",
+      "tags": [
+        "中国史",
+        "近代",
+        "改革"
+      ],
+      "summary": "百日维新，虽失败但开启了制度变革的公共讨论。",
+      "importance": 1
+    },
+    {
+      "id": "e7",
+      "title": "辛亥革命",
+      "start": "1911-10-10",
+      "end": "1912-02-12",
+      "dateText": "1911年10月–1912年2月",
+      "category": "政治",
+      "tags": [
+        "中国史",
+        "近代"
+      ],
+      "summary": "武昌起义，清帝退位，结束两千年帝制。",
+      "importance": 1
+    },
+    {
+      "id": "e7a",
+      "title": "武昌起义",
+      "start": "1911-10-10",
+      "dateText": "1911年10月10日",
+      "category": "战争",
+      "tags": [
+        "中国史",
+        "近代"
+      ],
+      "summary": "新军起义，打响辛亥革命第一枪。",
+      "importance": 2,
+      "parent": "e7"
+    },
+    {
+      "id": "e7b",
+      "title": "南北议和",
+      "start": "1911-12-18",
+      "end": "1912-02-12",
+      "dateText": "1911年12月–1912年2月",
+      "category": "政治",
+      "tags": [
+        "中国史",
+        "近代"
+      ],
+      "summary": "清廷与革命党谈判，促成清帝退位。",
+      "importance": 2,
+      "parent": "e7"
+    },
+    {
+      "id": "e8",
+      "title": "中华民国成立",
+      "start": "1912-01-01",
+      "dateText": "1912年1月1日",
+      "category": "政治",
+      "tags": [
+        "中国史",
+        "近代"
+      ],
+      "summary": "孙中山就任临时大总统。",
+      "importance": 2
+    },
+    {
+      "id": "e9",
+      "title": "新文化运动",
+      "start": "1915-09-15",
+      "end": "1923-01-01",
+      "dateText": "1915年起",
+      "category": "文化",
+      "tags": [
+        "中国史",
+        "近代"
+      ],
+      "summary": "《青年杂志》创刊，白话文、科学与民主的思潮。",
+      "importance": 2
+    },
+    {
+      "id": "e10",
+      "title": "五四运动",
+      "start": "1919-05-04",
+      "dateText": "1919年5月4日",
+      "category": "文化",
+      "tags": [
+        "中国史",
+        "近代"
+      ],
+      "summary": "反帝反封建的爱国运动，学生与工人参与。",
+      "importance": 1
+    },
+    {
+      "id": "e11",
+      "title": "中国共产党第一次全国代表大会",
+      "start": "1921-07-23",
+      "dateText": "1921年7月",
+      "category": "政治",
+      "tags": [
+        "中国史",
+        "近代"
+      ],
+      "summary": "建党。",
+      "importance": 2
+    },
+    {
+      "id": "e12",
+      "title": "国民革命北伐",
+      "start": "1926-07-09",
+      "end": "1928-12-29",
+      "dateText": "1926–1928年",
+      "category": "战争",
+      "tags": [
+        "中国史",
+        "民国"
+      ],
+      "summary": "北伐战争，形式上统一全国。",
+      "importance": 2
+    },
+    {
+      "id": "e12a",
+      "title": "汀泗桥战役",
+      "start": "1926-08-26",
+      "dateText": "1926年8月",
+      "category": "战争",
+      "tags": [
+        "中国史",
+        "民国"
+      ],
+      "summary": "北伐军击溃吴佩孚部，打开鄂南门户。",
+      "importance": 3,
+      "parent": "e12"
+    },
+    {
+      "id": "e12b",
+      "title": "占领南京",
+      "start": "1927-03-24",
+      "dateText": "1927年3月24日",
+      "category": "战争",
+      "tags": [
+        "中国史",
+        "民国"
+      ],
+      "summary": "北伐军进入南京。",
+      "importance": 3,
+      "parent": "e12"
+    },
+    {
+      "id": "e12c",
+      "title": "东北易帜",
+      "start": "1928-12-29",
+      "dateText": "1928年12月29日",
+      "category": "政治",
+      "tags": [
+        "中国史",
+        "民国"
+      ],
+      "summary": "张学良宣布东北服从南京，全国形式统一。",
+      "importance": 2,
+      "parent": "e12"
+    },
+    {
+      "id": "e13",
+      "title": "九一八事变",
+      "start": "1931-09-18",
+      "dateText": "1931年9月18日",
+      "category": "战争",
+      "tags": [
+        "中国史",
+        "民国"
+      ],
+      "summary": "日本发动侵华战争，东北沦陷。",
+      "importance": 1
+    },
+    {
+      "id": "e14",
+      "title": "七七事变",
+      "start": "1937-07-07",
+      "dateText": "1937年7月7日",
+      "category": "战争",
+      "tags": [
+        "中国史",
+        "民国"
+      ],
+      "summary": "卢沟桥事变，全面抗战爆发。",
+      "importance": 1
+    },
+    {
+      "id": "e15p",
+      "title": "抗日战争",
+      "start": "1937-07-07",
+      "end": "1945-09-02",
+      "dateText": "1937–1945年",
+      "category": "战争",
+      "tags": [
+        "中国史"
+      ],
+      "summary": "中国全面抗战，八年战争。",
+      "importance": 1
+    },
+    {
+      "id": "e15",
+      "title": "抗日战争胜利",
+      "start": "1945-08-15",
+      "dateText": "1945年8月15日",
+      "category": "战争",
+      "tags": [
+        "中国史"
+      ],
+      "summary": "日本宣布无条件投降。",
+      "importance": 1,
+      "parent": "e15p"
+    },
+    {
+      "id": "e15a",
+      "title": "卢沟桥事变",
+      "start": "1937-07-07",
+      "dateText": "1937年7月7日",
+      "category": "战争",
+      "tags": [
+        "中国史",
+        "民国"
+      ],
+      "summary": "全面抗战起点。",
+      "importance": 2,
+      "parent": "e15p"
+    },
+    {
+      "id": "e15b",
+      "title": "台儿庄战役",
+      "start": "1938-03-16",
+      "end": "1938-04-07",
+      "dateText": "1938年3–4月",
+      "category": "战争",
+      "tags": [
+        "中国史",
+        "民国"
+      ],
+      "summary": "正面战场的重大胜利。",
+      "importance": 2,
+      "parent": "e15p"
+    },
+    {
+      "id": "e15c",
+      "title": "百团大战",
+      "start": "1940-08-20",
+      "end": "1941-01-24",
+      "dateText": "1940年8月–1941年1月",
+      "category": "战争",
+      "tags": [
+        "中国史"
+      ],
+      "summary": "八路军华北大规模破袭战。",
+      "importance": 2,
+      "parent": "e15p"
+    },
+    {
+      "id": "e15d",
+      "title": "南京大屠杀",
+      "start": "1937-12-13",
+      "end": "1938-01-01",
+      "dateText": "1937年12月",
+      "category": "战争",
+      "tags": [
+        "中国史",
+        "民国"
+      ],
+      "summary": "日军攻陷南京后的暴行。",
+      "importance": 1,
+      "parent": "e15p"
+    },
+    {
+      "id": "e16",
+      "title": "中华人民共和国成立",
+      "start": "1949-10-01",
+      "dateText": "1949年10月1日",
+      "category": "政治",
+      "tags": [
+        "中国史"
+      ],
+      "summary": "开国大典。",
+      "importance": 1
+    },
+    {
+      "id": "e17",
+      "title": "第一个五年计划",
+      "start": "1953-01-01",
+      "end": "1957-12-31",
+      "dateText": "1953–1957年",
+      "category": "经济",
+      "tags": [
+        "中国史"
+      ],
+      "summary": "工业化起步，重工业体系建立。",
+      "importance": 2
+    },
+    {
+      "id": "e18",
+      "title": "两弹一星",
+      "start": "1964-10-16",
+      "end": "1970-04-24",
+      "dateText": "1964–1970年",
+      "category": "科技",
+      "tags": [
+        "中国史",
+        "技术突破"
+      ],
+      "summary": "原子弹、氢弹、人造卫星相继成功。",
+      "importance": 1
+    },
+    {
+      "id": "e19",
+      "title": "改革开放",
+      "start": "1978-12-18",
+      "end": "1992-01-01",
+      "dateText": "1978年起",
+      "category": "经济",
+      "tags": [
+        "中国史",
+        "改革"
+      ],
+      "summary": "十一届三中全会，经济体制改革启动。",
+      "importance": 1
+    },
+    {
+      "id": "e20",
+      "title": "加入世界贸易组织",
+      "start": "2001-12-11",
+      "dateText": "2001年12月11日",
+      "category": "经济",
+      "tags": [
+        "中国史"
+      ],
+      "summary": "深度融入全球贸易体系。",
+      "importance": 1
+    },
+    {
+      "id": "e21",
+      "title": "阿波罗11号登月",
+      "start": "1969-07-20",
+      "dateText": "1969年7月20日",
+      "category": "科技",
+      "tags": [
+        "世界史",
+        "技术突破"
+      ],
+      "summary": "人类首次登上月球。",
+      "importance": 1
+    },
+    {
+      "id": "e22",
+      "title": "文艺复兴",
+      "start": "1400-01-01",
+      "end": "1600-01-01",
+      "dateText": "14–16世纪",
+      "category": "文化",
+      "tags": [
+        "世界史"
+      ],
+      "summary": "古典文化复兴与人文主义兴起。",
+      "importance": 1
+    },
+    {
+      "id": "e23",
+      "title": "工业革命",
+      "start": "1760-01-01",
+      "end": "1840-01-01",
+      "dateText": "18世纪60年代起",
+      "category": "经济",
+      "tags": [
+        "世界史",
+        "技术突破"
+      ],
+      "summary": "蒸汽动力与工厂制度改变生产与生活方式。",
+      "importance": 1
+    },
+    {
+      "id": "e24",
+      "title": "第一次世界大战",
+      "start": "1914-07-28",
+      "end": "1918-11-11",
+      "dateText": "1914–1918年",
+      "category": "战争",
+      "tags": [
+        "世界史"
+      ],
+      "summary": "触动帝国体系解体与民族国家重建。",
+      "importance": 1
+    },
+    {
+      "id": "e25",
+      "title": "第二次世界大战",
+      "start": "1939-09-01",
+      "end": "1945-09-02",
+      "dateText": "1939–1945年",
+      "category": "战争",
+      "tags": [
+        "世界史"
+      ],
+      "summary": "全球性战争，战后建立联合国体系。",
+      "importance": 1
+    },
+    {
+      "id": "e26",
+      "title": "古腾堡活字印刷",
+      "start": "1440-01-01",
+      "dateText": "约1440年",
+      "category": "科技",
+      "tags": [
+        "世界史",
+        "技术突破"
+      ],
+      "summary": "活字印刷让书籍大规模复制成为可能。",
+      "importance": 2
+    },
+    {
+      "id": "e27",
+      "title": "牛顿《自然哲学的数学原理》",
+      "start": "1687-07-05",
+      "dateText": "1687年",
+      "category": "科技",
+      "tags": [
+        "世界史",
+        "技术突破"
+      ],
+      "summary": "经典力学体系建立。",
+      "importance": 2
+    },
+    {
+      "id": "e28",
+      "title": "法国大革命",
+      "start": "1789-07-14",
+      "end": "1799-11-09",
+      "dateText": "1789–1799年",
+      "category": "政治",
+      "tags": [
+        "世界史"
+      ],
+      "summary": "自由、平等、博爱的政治实验。",
+      "importance": 1
+    },
+    {
+      "id": "e29",
+      "title": "联合国成立",
+      "start": "1945-10-24",
+      "dateText": "1945年10月24日",
+      "category": "政治",
+      "tags": [
+        "世界史"
+      ],
+      "summary": "战后国际组织的奠基。",
+      "importance": 2
+    },
+    {
+      "id": "e30",
+      "title": "互联网普及",
+      "start": "1995-01-01",
+      "dateText": "1990年代中期",
+      "category": "科技",
+      "tags": [
+        "世界史",
+        "技术突破"
+      ],
+      "summary": "万维网进入大众生活。",
+      "importance": 1
+    },
+    {
+      "id": "d-sarajevo",
+      "title": "萨拉热窝事件",
+      "start": "1914-06-28",
+      "end": "1914-07-28",
+      "dateText": "1914年6月28日",
+      "category": "政治",
+      "tags": [
+        "世界史",
+        "一战"
+      ],
+      "summary": "奥匈皇储斐迪南大公遇刺，一个多月后战争全面爆发。作为战争的导火索，它本身不属于战争过程，所以是独立事件而非子事件。",
+      "importance": 2
+    },
+    {
+      "id": "d-marne",
+      "title": "马恩河战役",
+      "start": "1914-09-05",
+      "end": "1914-09-12",
+      "dateText": "1914年9月5–12日",
+      "category": "战争",
+      "tags": [
+        "世界史",
+        "一战"
+      ],
+      "summary": "挫败施里芬计划，西线转入阵地战。",
+      "importance": 2,
+      "parent": "e24"
+    },
+    {
+      "id": "d-verdun",
+      "title": "凡尔登战役",
+      "start": "1916-02-21",
+      "end": "1916-12-18",
+      "dateText": "1916年2–12月",
+      "category": "战争",
+      "tags": [
+        "世界史",
+        "一战"
+      ],
+      "summary": "绞肉机，双方伤亡约 70 万。",
+      "importance": 1,
+      "parent": "e24"
+    },
+    {
+      "id": "d-somme",
+      "title": "索姆河战役",
+      "start": "1916-07-01",
+      "end": "1916-11-18",
+      "dateText": "1916年7–11月",
+      "category": "战争",
+      "tags": [
+        "世界史",
+        "一战"
+      ],
+      "summary": "坦克首次投入实战。",
+      "importance": 2,
+      "parent": "e24"
+    },
+    {
+      "id": "d-russia",
+      "title": "俄国退出战争",
+      "start": "1917-11-07",
+      "end": "1917-12-05",
+      "dateText": "1917年11月",
+      "category": "政治",
+      "tags": [
+        "世界史",
+        "一战"
+      ],
+      "summary": "十月革命后，布尔什维克政府宣布退出，苏俄与德国单独停战。",
+      "importance": 2,
+      "parent": "e24"
+    },
+    {
+      "id": "d-armistice",
+      "title": "康边停战协定",
+      "start": "1918-11-04",
+      "end": "1918-11-11",
+      "dateText": "1918年11月11日",
+      "category": "政治",
+      "tags": [
+        "世界史",
+        "一战"
+      ],
+      "summary": "当天上午 11 时停火，战争结束。",
+      "importance": 2,
+      "parent": "e24"
+    }
+  ]
+}

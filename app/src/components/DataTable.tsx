@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { Category, Tag, TimelineEvent } from "../data/sampleData";
+import type { Category, Tag, TimelineEvent } from "../data/schema";
 import { formatJdn } from "../lib/time";
 
 interface Props {

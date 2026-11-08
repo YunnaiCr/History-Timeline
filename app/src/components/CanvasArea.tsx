@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Viewport } from "../lib/viewport";
 import { jdnToX } from "../lib/viewport";
-import type { Category, Tag, TimelineEvent } from "../data/sampleData";
+import type { Category, Tag, TimelineEvent } from "../data/schema";
 import {
   assignLanes,
   buildNodes,

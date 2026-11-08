@@ -10,8 +10,9 @@ globalThis.localStorage = {
   clear: () => mem.clear(),
 };
 
-const { seedData, loadData, clearData, saveData } = await import("../dist-src/lib/store.js");
+const { emptyData } = await import("../dist-src/lib/store.js");
 const { serialize, parseImport, exportFileName, mergeData } = await import("../dist-src/lib/io.js");
+import { sampleText, sampleData } from "./_sample.mjs";
 
 let ok = 0;
 const check = (name, cond, extra = "") => {
@@ -19,17 +20,14 @@ const check = (name, cond, extra = "") => {
   if (cond) ok++;
 };
 
-// ================= 清空 =================
-clearData();
-const afterClear = loadData();
-check("清空后事件为 0", afterClear.events.length === 0, `${afterClear.events.length} 条`);
-check("清空后标签为 0", afterClear.tags.length === 0);
-check("清空后保留类别", afterClear.categories.length > 0, `${afterClear.categories.length} 个`);
-check("清空已落盘", localStorage.getItem("history-timeline.v1") !== null);
+// ================= 空库 =================
+const empty = emptyData();
+check("空库事件为 0", empty.events.length === 0, `${empty.events.length} 条`);
+check("空库标签为 0", empty.tags.length === 0);
+check("空库保留默认类别", empty.categories.length > 0, `${empty.categories.length} 个`);
 
 // ================= 序列化往返 =================
-mem.clear();
-const seed = seedData();
+const seed = sampleData();
 const json = serialize(seed);
 
 let parsedOk = true;
@@ -75,10 +73,19 @@ check("缺字段时用当前库补齐", partial.ok && partial.data.categories.le
 const name = exportFileName(new Date(2026, 10, 6));
 check("导出文件名带日期", name.includes("2026-11-06") && name.endsWith(".json"), name);
 
-// ================= 落盘再读回 =================
-saveData(round.data);
-const reread = loadData();
-check("导入后可落盘再读回", reread.events.length === seed.events.length);
+// ================= 二次序列化内容稳定（导出→解析→再导出，数据不变） =================
+// 注意不能直接比文本：serialize 会写入 exportedAt 时间戳。
+const againData = parseImport(serialize(round.data), seed).data;
+check(
+  "二次解析后事件完全一致",
+  JSON.stringify(againData.events) === JSON.stringify(round.data.events),
+  `${againData.events.length} 条`
+);
+check(
+  "二次解析后类别标签一致",
+  JSON.stringify(againData.categories) === JSON.stringify(round.data.categories) &&
+    JSON.stringify(againData.tags) === JSON.stringify(round.data.tags)
+);
 
 // ================= 合并（不覆盖） =================
 const mkEvent = (id, title, extra = {}) => ({

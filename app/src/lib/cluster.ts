@@ -8,7 +8,7 @@
  *    会被压缩成一个点参与聚簇。
  *  - importance 门槛：点位太密时先丢掉 importance=3 的次要事件，再聚簇。
  */
-import type { TimelineEvent } from "../data/sampleData";
+import type { TimelineEvent } from "../data/schema";
 import type { Viewport } from "./viewport";
 import { jdnToX } from "./viewport";
 

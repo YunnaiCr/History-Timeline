@@ -5,8 +5,8 @@ import EventDialog from "./components/EventDialog";
 import ManageDialog from "./components/ManageDialog";
 import DataTable from "./components/DataTable";
 import SettingsDialog from "./components/SettingsDialog";
-import type { Category, Tag, TimelineEvent } from "./data/sampleData";
-import { emptyData, loadData, saveData, seedData, type DataFile } from "./lib/store";
+import type { Category, Tag, TimelineEvent } from "./data/schema";
+import { emptyData, loadData, saveData, type DataFile } from "./lib/store";
 import { downloadJson, parseImport, exportFileName, mergeData } from "./lib/io";
 import { panBy, fitRange, zoomAt, type Viewport } from "./lib/viewport";
 import { loadSettings, saveSettings, type Settings } from "./lib/settings";
@@ -329,11 +329,6 @@ export default function App() {
     });
   }, []);
 
-  const handleReset = () => {
-    if (!window.confirm("恢复为内置示例数据？你自己添加的事件会丢失。")) return;
-    adoptData(seedData());
-  };
-
   /** 清空所有事件与标签（保留类别），便于从零开始录入 */
   const handleClear = () => {
     if (
@@ -633,9 +628,6 @@ export default function App() {
           </button>
           <button className="danger" onClick={handleClear} title="清空全部事件与标签，保留类别">
             清空全部
-          </button>
-          <button onClick={handleReset} title="恢复为内置示例数据">
-            恢复示例
           </button>
           <button onClick={() => setSettingsOpen(true)} title="数据目录、备份份数">
             设置

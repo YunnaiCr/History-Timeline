@@ -4,7 +4,9 @@
  */
 import { fitRange, xToJdn, jdnToX } from "../dist-src/lib/viewport.js";
 import { toJdn } from "../dist-src/lib/time.js";
-import { events } from "../dist-src/data/sampleData.js";
+import { sampleData } from "./_sample.mjs";
+
+const { events } = sampleData();
 
 let ok = 0;
 const check = (name, cond, extra = "") => {

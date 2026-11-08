@@ -1,8 +1,11 @@
 /**
- * 示例数据完整性自检：标题不重复、id 不重复、没有指向不存在父事件的子事件。
+ * 示例数据完整性自检：标题不重复、id 不重复、父子关系合法。
+ * 数据来自仓库根的 samples/sample.json（应用本身不再内置示例）。
  * 运行：node build-m0.mjs && node selfcheck/datacheck.mjs
  */
-import { events, categories, tags } from "../dist-src/data/sampleData.js";
+import { sampleData } from "./_sample.mjs";
+
+const { events, categories, tags } = sampleData();
 
 let ok = 0;
 const check = (name, cond, extra = "") => {
@@ -30,7 +33,7 @@ check(
   orphans.map((o) => `${o.title}->${o.parentId}`).join(", ")
 );
 
-// 4. 父事件是区间事件（否则"展开"没有时间范围可依托）
+// 4. 父事件是区间事件
 const badParents = events.filter((e) => {
   if (!e.parentId) return false;
   const p = events.find((x) => x.id === e.parentId);
@@ -57,7 +60,7 @@ const badTag = events.filter((e) => e.tagIds.some((t) => !tagIds.has(t)));
 check("类别引用都存在", badCat.length === 0, badCat.map((e) => e.title).join(","));
 check("标签引用都存在", badTag.length === 0, badTag.map((e) => e.title).join(","));
 
-// 7. 每条事件都有 dateText（时间轴卡片上直接显示它）
+// 7. 每条事件都有 dateText
 const noDateText = events.filter((e) => !e.dateText || !e.dateText.trim());
 check("每条事件都有 dateText", noDateText.length === 0, noDateText.map((e) => e.title).join(","));
 
@@ -65,5 +68,9 @@ check("每条事件都有 dateText", noDateText.length === 0, noDateText.map((e)
 const badImp = events.filter((e) => ![1, 2, 3].includes(e.importance));
 check("importance 都是 1/2/3", badImp.length === 0, badImp.map((e) => e.title).join(","));
 
+// 9. 规模合理（这份示例是用来演示的，不能太少）
+check("示例事件数不少于 40", events.length >= 40, `${events.length} 条`);
+check("示例包含父子层级", events.filter((e) => e.parentId).length >= 10, `${events.filter((e) => e.parentId).length} 个`);
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === 9 ? 0 : 1);
+process.exit(ok === 11 ? 0 : 1);

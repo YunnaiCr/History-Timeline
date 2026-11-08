@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Category, Tag, TimelineEvent } from "../data/sampleData";
+import type { Category, Tag, TimelineEvent } from "../data/schema";
 
 interface Props {
   open: boolean;

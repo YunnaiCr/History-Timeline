@@ -27,7 +27,15 @@ history-timeline.exe
 
 不需要安装 Node.js、Rust 或 Visual Studio，也不需要安装过程，删掉文件就等于卸载。
 
-首次启动会在本机建立数据目录（见[数据存储](#数据存储)）。之后每次改动都会自动保存。
+首次启动会在文档目录建立一个**空的数据文件**（见[数据存储](#数据存储)）。之后每次改动都会自动保存。
+
+想先看看效果，可以导入仓库里的示例数据：
+
+```
+samples/sample.json     50 条事件，含 4 组父子层级
+```
+
+打开应用 → 底栏「导入 JSON」→ 选这个文件 → 选「合并」。也可以只用它试试导入功能，再「清空全部」开始记自己的。
 
 > 仓库目前不附带预编译的 exe，需要自己生成一次 —— 见[从源码构建](#从源码构建)，完成后产物在 `app/src-tauri/target/release/history-timeline.exe`。
 
@@ -73,15 +81,23 @@ history-timeline.exe
 
 ## 数据存储
 
-数据保存在本机应用数据目录：
+数据是一个**普通 JSON 文件**，默认位于：
 
 ```
-%LOCALAPPDATA%\com.yunnai.historytimeline\EBWebView\Default\Local Storage
+文档\历史事件线\history-timeline.json
 ```
 
-**建议定期备份。** 这个目录是浏览器内核的数据库格式，不能直接复制阅读；请用应用内的「导出 JSON」生成一份可读文件，再用「导入 JSON」恢复到其他设备。
+可以在底栏「设置」里改成任意目录和文件名。`history-timeline.json` 就是你的全部数据，可以直接备份、放进网盘、拷到别的电脑。
 
-导出的 JSON 是**可手写**的：日期写成 `1911-10-10` 或 `-221`，类别和标签用名称，也可以只用记事本写几条事件再导入。详见 [JSON 数据格式](docs/JSON格式.md)。
+保存时会在同目录留一份备份：
+
+```
+history-timeline.backup-20261108-140233.json
+```
+
+默认保留最近 5 份，数量可在设置里调整（也可以关掉）。
+
+文件格式是**可手写**的：日期写成 `1911-10-10` 或 `-221`，类别和标签用名称，只用记事本写几条事件也能导入。详见 [JSON 数据格式](docs/JSON格式.md)。
 
 ## 从源码构建
 
@@ -168,7 +184,7 @@ npm run dev     # 浏览器打开 http://127.0.0.1:1420
 | 界面 | React 19 + TypeScript |
 | 构建 | Vite |
 | 时间模型 | 整数儒略日 |
-| 存储 | localStorage（可选 JSON 导出） |
+| 存储 | 单个 JSON 文件 + 自动备份 |
 
 ## 项目结构
 
@@ -176,16 +192,22 @@ npm run dev     # 浏览器打开 http://127.0.0.1:1420
 app/
 ├── src/
 │   ├── lib/
-│   │   ├── time.ts       时间换算与格式化
-│   │   ├── viewport.ts   时间与像素的映射、缩放、平移
-│   │   ├── cluster.ts    收纳与层级布局
-│   │   ├── ticks.ts      刻度生成
-│   │   ├── store.ts      本地持久化
-│   │   └── io.ts         JSON 导入导出
-│   ├── components/       时间轴、刻度尺、编辑弹窗、表格等
-│   └── data/             示例数据
-├── src-tauri/            Tauri 应用外壳
-└── selfcheck/            自动化校验脚本
+│   │   ├── time.ts        时间换算与格式化
+│   │   ├── viewport.ts    时间与像素的映射、缩放、平移
+│   │   ├── cluster.ts     收纳与层级布局
+│   │   ├── ticks.ts       刻度生成
+│   │   ├── store.ts       数据容器（浏览器模式兜底存储）
+│   │   ├── path.ts        路径拼接
+│   │   ├── fsdata.ts      文件读写（调 Rust 命令）
+│   │   ├── repository.ts  数据文件：读取、保存、备份轮转
+│   │   ├── settings.ts    设置项
+│   │   └── io.ts          JSON 导入导出
+│   ├── components/        时间轴、刻度尺、编辑弹窗、表格、设置等
+│   └── data/schema.ts     数据类型与默认类别
+├── src-tauri/             Tauri 应用外壳（含文件读写命令）
+└── selfcheck/             自动化校验脚本
+
+samples/sample.json        示例数据，用于试用导入功能
 ```
 
 ## 开发自检
