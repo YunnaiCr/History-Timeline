@@ -24,10 +24,10 @@ import { fromJdn, toJdn, fromHistoricalYear, toHistoricalYear } from "./time";
 
 export const EXPORT_VERSION = 1;
 
-/** 文件名：历史时间线-2026-11-06.json */
+/** 文件名：history-timeline-export-2026-11-06.json（全英文，避免中文路径问题） */
 export function exportFileName(d = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `历史时间线-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
+  return `history-timeline-export-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
 }
 
 const pad2 = (n: number) => String(n).padStart(2, "0");

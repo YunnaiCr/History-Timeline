@@ -84,22 +84,32 @@ samples/sample.json     50 条事件，含 4 组父子层级
 数据是一个**普通 JSON 文件**，默认位于：
 
 ```
-文档\历史事件线\history-timeline.json
+文档\HistoryTimeline\history-timeline.json
 ```
 
-可以在底栏「设置」里改成任意目录和文件名。`history-timeline.json` 就是你的全部数据，可以直接备份、放进网盘、拷到别的电脑。
+可以在底栏「设置」里改成任意目录和文件名。这个 json 就是你的全部数据，可以直接备份、放进网盘、拷到别的电脑。
 
 保存时会在同目录留一份备份：
 
 ```
-history-timeline.backup-20261108-140233.json
+history-timeline.backup-20260811-140233.json
 ```
 
 默认保留最近 5 份，数量可在设置里调整（也可以关掉）。
 
+导出的副本默认放在数据目录下的 `exports\` 子文件夹，和主文件分开：
+
+```
+文档\HistoryTimeline\
+├── history-timeline.json
+├── history-timeline.backup-*.json
+└── exports\
+    └── history-timeline-export-2026-11-08.json
+```
+
 文件格式是**可手写**的：日期写成 `1911-10-10` 或 `-221`，类别和标签用名称，只用记事本写几条事件也能导入。详见 [JSON 数据格式](docs/JSON格式.md)。
 
-底栏「导出 JSON」会弹「另存为」，默认位置是**程序所在文件夹**（就是双击启动 exe 的那个目录），文件名形如 `历史时间线-2026-11-08.json`，也可以改到任意位置。导出的是副本，不影响应用正在用的数据文件。
+底栏「导出 JSON」会弹「另存为」，默认位置是数据目录下的 `exports\` 子文件夹（默认即 `文档\HistoryTimeline\exports\`），文件名形如 `history-timeline-export-2026-11-08.json`，也可以改到任意位置。导出的是副本，不影响应用正在用的数据文件。
 
 ## 从源码构建
 

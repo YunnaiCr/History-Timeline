@@ -11,12 +11,25 @@ import { emptyData, loadData, saveData, type DataFile } from "./lib/store";
 import { downloadJson, parseImport, exportFileName, mergeData } from "./lib/io";
 import { panBy, fitRange, zoomAt, type Viewport } from "./lib/viewport";
 import { loadSettings, saveSettings, type Settings } from "./lib/settings";
-import { appDir, defaultDataDir, dirOf, isDesktop, joinPath, pathExists } from "./lib/fsdata";
+import {
+  appDir,
+  defaultDataDir,
+  ensureDir,
+  isDesktop,
+  joinPath,
+  legacyDataDir,
+  pathExists,
+  readTextFile,
+  writeTextFile,
+} from "./lib/fsdata";
 import { loadDataFile, resolveDataPath, saveDataFile } from "./lib/repository";
 
 const MIN_PX_PER_DAY = 1e-4; // 一屏约 2000 年
 const MAX_PX_PER_DAY = 400; // 一屏几小时
 const GUTTER = 16; // 与 CanvasArea 左留白对齐
+
+/** 导出副本放在数据目录下的这个子文件夹里 */
+const EXPORT_SUBDIR = "exports";
 
 const fitAll = (data: DataFile, width: number): Viewport => {
   if (data.events.length === 0) {
@@ -96,12 +109,12 @@ export default function App() {
       }
 
       try {
-        // 程序所在目录：导出时默认存这里
+        // 程序所在目录（仅作导出兜底）
         try {
           const exe = await appDir();
           if (!cancelled) setExeDir(exe);
         } catch {
-          /* 拿不到就退回数据目录的上一层 */
+          /* 拿不到就算了 */
         }
 
         const dir = s.dataDir ?? (await defaultDataDir());
@@ -109,6 +122,19 @@ export default function App() {
         setDataDir(dir);
         const path = joinPath(dir, s.fileName);
         setDataPath(path);
+
+        // 目录名从「历史事件线」改成「HistoryTimeline」，把旧数据搬过来
+        if (!s.dataDir && !(await pathExists(path))) {
+          try {
+            const legacyPath = joinPath(await legacyDataDir(), s.fileName);
+            if (await pathExists(legacyPath)) {
+              await ensureDir(dir);
+              await writeTextFile(path, await readTextFile(legacyPath));
+            }
+          } catch {
+            /* 搬迁失败就按新库开始，不阻塞启动 */
+          }
+        }
 
         const res = await loadDataFile(path);
         if (cancelled) return;
@@ -397,9 +423,9 @@ export default function App() {
   /**
    * 导出为 JSON。
    *
-   * 弹「另存为」，默认目录是**程序所在文件夹**——用户就是在这儿双击启动的，
-   * 找起来最直接。也可以改到任意位置。
-   * 浏览器模式没有保存对话框，退回普通下载。
+   * 默认存到数据目录下的 exports\ 子文件夹（默认即 文档\HistoryTimeline\exports\），
+   * 和主数据文件分开放，别人来拿文件时不用在一堆备份里挑。
+   * 也可以改到任意位置。浏览器模式没有保存对话框，退回普通下载。
    */
   const handleExport = async () => {
     if (!desktop) {
@@ -407,8 +433,9 @@ export default function App() {
       return;
     }
     try {
-      const baseDir = exeDir || (dataDir ? dirOf(dataDir) : "");
-      const defaultPath = baseDir ? joinPath(baseDir, exportFileName()) : exportFileName();
+      const exportDir = dataDir ? joinPath(dataDir, EXPORT_SUBDIR) : exeDir;
+      if (exportDir) await ensureDir(exportDir);
+      const defaultPath = exportDir ? joinPath(exportDir, exportFileName()) : exportFileName();
       const target = await save({
         title: "导出为 JSON",
         defaultPath,

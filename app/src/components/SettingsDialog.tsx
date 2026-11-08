@@ -91,7 +91,7 @@ export default function SettingsDialog({
                 <button
                   className="dlg-btn ghost"
                   onClick={() => setDraft({ ...draft, dataDir: null })}
-                  title="改回默认目录（文档\历史事件线）"
+                  title="改回默认目录（文档\HistoryTimeline）"
                 >
                   默认
                 </button>
@@ -99,8 +99,8 @@ export default function SettingsDialog({
             </div>
             <span className="set-hint">
               {draft.dataDir
-                ? "自定义目录。数据文件会保存在这里。"
-                : "默认目录：文档\\历史事件线"}
+                ? "自定义目录。数据文件会保存在这里，导出副本在同级 exports\\ 里。"
+                : "默认目录：文档\\HistoryTimeline（导出副本在 exports\\ 子文件夹）"}
             </span>
           </div>
 

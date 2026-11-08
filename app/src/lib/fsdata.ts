@@ -16,12 +16,17 @@ export function isDesktop(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
-/** 默认数据目录：文档\历史事件线 */
+/** 默认数据目录：文档\HistoryTimeline */
 export function defaultDataDir(): Promise<string> {
   return invoke<string>("default_data_dir");
 }
 
-/** 程序所在目录（exe 的同级目录），导出默认存这里 */
+/** 旧版默认目录：文档\历史事件线。只用于升级搬迁 */
+export function legacyDataDir(): Promise<string> {
+  return invoke<string>("legacy_data_dir");
+}
+
+/** 程序所在目录（exe 的同级目录） */
 export function appDir(): Promise<string> {
   return invoke<string>("app_dir");
 }

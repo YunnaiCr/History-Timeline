@@ -9,9 +9,22 @@ use std::path::PathBuf;
 
 use tauri::Manager;
 
-/// 默认数据目录：文档\历史事件线
+/// 默认数据目录：文档\HistoryTimeline
+///
+/// 目录名一律用英文：中文路径在压缩包、某些同步盘、命令行工具里容易出问题。
 #[tauri::command]
 fn default_data_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let docs = app
+        .path()
+        .document_dir()
+        .map_err(|e| format!("找不到「文档」目录：{e}"))?;
+    Ok(docs.join("HistoryTimeline").to_string_lossy().to_string())
+}
+
+/// 旧版默认目录：文档\历史事件线。
+/// 只用于把升级前的数据搬到新目录，不参与日常读写。
+#[tauri::command]
+fn legacy_data_dir(app: tauri::AppHandle) -> Result<String, String> {
     let docs = app
         .path()
         .document_dir()
@@ -111,6 +124,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             default_data_dir,
+            legacy_data_dir,
             app_dir,
             ensure_dir,
             path_exists,

@@ -6,7 +6,7 @@
  * 用户仍然能打开应用去改设置。
  */
 export interface Settings {
-  /** 数据目录；null 表示用默认目录（文档\历史事件线） */
+  /** 数据目录；null 表示用默认目录（文档\HistoryTimeline） */
   dataDir: string | null;
   /** 数据文件名 */
   fileName: string;
