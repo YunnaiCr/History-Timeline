@@ -59,22 +59,26 @@ const d = loadSettings();
 check("空存储返回默认设置", d.fileName === DEFAULT_SETTINGS.fileName && d.backupCount === 5);
 check("默认不指定自定义目录", d.dataDir === null);
 
-saveSettings({ dataDir: "D:\\data", fileName: "mine.json", backupCount: 3 });
+saveSettings({ dataDir: "D:\\data", fileName: "mine.json", backupCount: 3, backupIntervalMinutes: 15 });
 const back = loadSettings();
-check("设置能存能读", back.dataDir === "D:\\data" && back.fileName === "mine.json" && back.backupCount === 3);
+check(
+  "设置能存能读",
+  back.dataDir === "D:\\data" &&
+    back.fileName === "mine.json" &&
+    back.backupCount === 3 &&
+    back.backupIntervalMinutes === 15
+);
 
-saveSettings({ dataDir: "   ", fileName: "  ", backupCount: 999 });
+saveSettings({ dataDir: "   ", fileName: "  ", backupCount: 999, backupIntervalMinutes: 99999 });
 const clamped = loadSettings();
 check("空白目录回退为默认", clamped.dataDir === null);
 check("空白文件名回退为默认", clamped.fileName === DEFAULT_SETTINGS.fileName);
 check("备份份数被上限截断", clamped.backupCount === 50, String(clamped.backupCount));
+check("备份间隔被上限截断", clamped.backupIntervalMinutes === 1440, String(clamped.backupIntervalMinutes));
 
-saveSettings({ dataDir: null, fileName: "x.json", backupCount: -5 });
-check(
-  "非法负数回退为默认份数",
-  loadSettings().backupCount === DEFAULT_SETTINGS.backupCount,
-  String(loadSettings().backupCount)
-);
+saveSettings({ dataDir: null, fileName: "x.json", backupCount: -5, backupIntervalMinutes: 0 });
+check("负数份数被抬到 0", loadSettings().backupCount === 0, String(loadSettings().backupCount));
+check("间隔 0 被抬到下限 1", loadSettings().backupIntervalMinutes === 1, String(loadSettings().backupIntervalMinutes));
 
 mem.set("history-timeline.settings.v1", "{ 坏掉的 json");
 const broken = loadSettings();
@@ -84,4 +88,4 @@ mem.set("history-timeline.settings.v1", JSON.stringify({ fileName: "x.json", bac
 check("类型不对的字段被纠正", loadSettings().backupCount === 5);
 
 console.log(`\n${ok} passed.`);
-process.exit(ok === 22 ? 0 : 1);
+process.exit(ok === 24 ? 0 : 1);

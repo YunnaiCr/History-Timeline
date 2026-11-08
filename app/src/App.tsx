@@ -8,7 +8,7 @@ import SettingsDialog from "./components/SettingsDialog";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { Category, Tag, TimelineEvent } from "./data/schema";
 import { emptyData, loadData, saveData, type DataFile } from "./lib/store";
-import { downloadJson, parseImport, exportFileName, mergeData } from "./lib/io";
+import { downloadJson, parseImport, exportFileName, mergeData, serialize } from "./lib/io";
 import { panBy, fitRange, zoomAt, type Viewport } from "./lib/viewport";
 import { loadSettings, saveSettings, type Settings } from "./lib/settings";
 import {
@@ -83,6 +83,8 @@ export default function App() {
 
   // 保存失败提示（写盘失败必须让用户知道，否则会静默丢数据）
   const [saveError, setSaveError] = useState<string | null>(null);
+  /** 上一次成功写盘的文本，内容没变就不重复写 */
+  const lastTextRef = useRef<string | null>(null);
 
   /** 把一份数据装进界面：重置筛选、视口跟着数据走 */
   const adoptData = useCallback((next: DataFile) => {
@@ -156,7 +158,7 @@ export default function App() {
     };
   }, [desktop, adoptData]);
 
-  // ---------- 保存：数据变化 600ms 后写盘 ----------
+  // 保存：数据变化 600ms 后写盘
   useEffect(() => {
     if (loading) return;
     setSaveState("saving");
@@ -168,8 +170,14 @@ export default function App() {
         else setSaveError(null);
         return;
       }
-      const res = await saveDataFile(dataPath, data, settings.backupCount);
+      const res = await saveDataFile(dataPath, data, {
+        backupCount: settings.backupCount,
+        backupIntervalMinutes: settings.backupIntervalMinutes,
+        lastText: lastTextRef.current,
+      });
       if (res.ok) {
+        // 记下写入的文本，下次内容相同时直接跳过
+        if (!res.skipped) lastTextRef.current = serialize(data);
         setSaveState("saved");
         setSaveError(null);
         setLastSavedAt(new Date().toLocaleTimeString("zh-CN", { hour12: false }));
@@ -179,7 +187,7 @@ export default function App() {
       }
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [data, dataPath, settings.backupCount, loading, desktop]);
+  }, [data, dataPath, settings.backupCount, settings.backupIntervalMinutes, loading, desktop]);
 
   // 首次拿到真实宽度后，按全量数据自适应（用 layoutEffect 避免闪一下旧画面）
   useLayoutEffect(() => {
@@ -406,7 +414,10 @@ export default function App() {
           const dir = next.dataDir ?? (await defaultDataDir());
           setDataDir(dir);
           setDataPath(newPath);
-          const res = await saveDataFile(newPath, data, next.backupCount);
+          const res = await saveDataFile(newPath, data, {
+            backupCount: next.backupCount,
+            backupIntervalMinutes: next.backupIntervalMinutes,
+          });
           if (!res.ok) setSaveError(`写入新位置失败：${res.error}`);
           else window.alert(`数据已保存到新位置：\n${newPath}`);
         }
@@ -443,7 +454,7 @@ export default function App() {
       });
       if (!target) return; // 用户取消
       // 导出是副本，不做备份轮转
-      const res = await saveDataFile(target, data, 0);
+      const res = await saveDataFile(target, data, { backupCount: 0, backupIntervalMinutes: 0 });
       if (res.ok) {
         window.alert(`已导出到：\n${target}`);
       } else {

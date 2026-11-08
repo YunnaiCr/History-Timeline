@@ -130,8 +130,28 @@ export default function SettingsDialog({
                   setDraft({ ...draft, backupCount: Math.max(0, Math.min(50, Number(e.target.value) || 0)) })
                 }
               />
+              <span className="set-hint">保留最近几份。0 表示不备份。</span>
+            </div>
+          </label>
+
+          <label className="dlg-field">
+            <span className="dlg-label">备份间隔（分钟）</span>
+            <div className="set-row">
+              <input
+                className="dlg-input tiny"
+                type="number"
+                min={1}
+                max={1440}
+                value={draft.backupIntervalMinutes}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    backupIntervalMinutes: Math.max(1, Math.min(1440, Number(e.target.value) || 1)),
+                  })
+                }
+              />
               <span className="set-hint">
-                每次保存前先把上一版存成备份。0 表示不备份。
+                距上一份不足这么久就不再新建，避免连续编辑把备份冲光。
               </span>
             </div>
           </label>

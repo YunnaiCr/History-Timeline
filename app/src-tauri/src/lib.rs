@@ -95,6 +95,17 @@ fn list_dir(path: String) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
+/// 复制文件。备份用它，比"读成字符串再写一遍"省一次内存往返。
+#[tauri::command]
+fn copy_file(src: String, dst: String) -> Result<(), String> {
+    let to = PathBuf::from(&dst);
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("创建目录失败：{e}"))?;
+    }
+    fs::copy(PathBuf::from(&src), &to).map_err(|e| format!("复制失败：{e}"))?;
+    Ok(())
+}
+
 /// 删除单个文件（备份轮转时清理旧备份用）。文件不存在视为成功。
 #[tauri::command]
 fn remove_file(path: String) -> Result<(), String> {
@@ -131,7 +142,8 @@ pub fn run() {
             read_text_file,
             write_text_file,
             list_dir,
-            remove_file
+            remove_file,
+            copy_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

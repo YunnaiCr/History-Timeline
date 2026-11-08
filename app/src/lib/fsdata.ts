@@ -54,3 +54,7 @@ export function listDir(path: string): Promise<string[]> {
 export function removeFile(path: string): Promise<void> {
   return invoke<void>("remove_file", { path });
 }
+
+export function copyFile(src: string, dst: string): Promise<void> {
+  return invoke<void>("copy_file", { src, dst });
+}

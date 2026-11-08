@@ -11,6 +11,7 @@ import { emptyData } from "./store";
 import type { Settings } from "./settings";
 import {
   baseNameOf,
+  copyFile,
   defaultDataDir,
   dirOf,
   ensureDir,
@@ -23,6 +24,7 @@ import {
   writeTextFile,
 } from "./fsdata";
 import { parseImport, serialize } from "./io";
+import { formatStamp, parseStamp, shouldCreateBackup } from "./backup";
 
 /** 备份文件名前缀：history-timeline.backup-<时间戳>.json */
 const BACKUP_MARK = ".backup-";
@@ -68,15 +70,6 @@ export async function loadDataFile(path: string): Promise<LoadResult> {
   return { data: parsed.data, created: false };
 }
 
-/** 时间戳：20261108-140233，用于备份文件名（按字典序即按时间序） */
-function stamp(d = new Date()): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return (
-    `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` +
-    `-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
-  );
-}
-
 function backupPrefix(fileName: string): string {
   return `${stripJsonExt(fileName)}${BACKUP_MARK}`;
 }
@@ -106,51 +99,86 @@ export interface SaveResult {
   ok: boolean;
   /** 实际写入的路径 */
   path: string;
+  /** 内容与上次相同，跳过了写盘 */
+  skipped?: boolean;
+  /** 本次是否新建了备份 */
+  backedUp?: boolean;
   error?: string;
+}
+
+export interface SaveOptions {
+  /** 保留几份备份；0 表示不备份 */
+  backupCount: number;
+  /** 备份间隔（分钟） */
+  backupIntervalMinutes: number;
+  /**
+   * 上一次成功写入的文本。内容完全相同就直接跳过——
+   * 省掉一次无意义的整文件重写（以及随之而来的备份轮转）。
+   */
+  lastText?: string | null;
+  /** 当前时间，便于测试注入 */
+  now?: number;
 }
 
 /**
  * 写数据文件。
  *
- * 写之前先把**旧内容**复制一份成备份，再写新内容。
- * 这样即使新内容有问题，上一版还在。
+ * 顺序：可能建备份 → 写主文件 → 清理多余备份。
+ *
+ * 三个优化：
+ *  - 内容没变就不写
+ *  - 备份按时间节流（默认 10 分钟一份），否则 600ms 一次保存会把备份冲光
+ *  - 备份用系统级文件复制，不再"读成字符串再写一遍"
  */
 export async function saveDataFile(
   path: string,
   data: DataFile,
-  backupCount: number
+  opts: SaveOptions
 ): Promise<SaveResult> {
   const dir = dirOf(path);
   const fileName = baseNameOf(path);
+  const now = opts.now ?? Date.now();
   try {
+    const text = serialize(data);
+
+    if (opts.lastText != null && text === opts.lastText) {
+      return { ok: true, path, skipped: true };
+    }
+
     await ensureDir(dir);
 
-    if (backupCount > 0) {
-      const exists = await pathExists(path);
-      if (exists) {
-        try {
-          const old = await readTextFile(path);
-          if (old.trim()) {
-            await writeTextFile(joinPath(dir, `${backupPrefix(fileName)}${stamp()}.json`), old);
-          }
-        } catch {
-          /* 备份失败不阻塞保存 */
+    let backedUp = false;
+    if (opts.backupCount > 0 && (await pathExists(path))) {
+      try {
+        const names = await listDir(dir);
+        const prefix = backupPrefix(fileName);
+        const stamps = names
+          .filter((n) => n.startsWith(prefix))
+          .map((n) => parseStamp(n))
+          .filter((t): t is number => t !== null);
+        const lastBackup = stamps.length ? Math.max(...stamps) : null;
+
+        if (shouldCreateBackup(lastBackup, now, opts.backupIntervalMinutes)) {
+          await copyFile(path, joinPath(dir, `${prefix}${formatStamp(now)}.json`));
+          backedUp = true;
         }
+      } catch {
+        /* 备份失败不阻塞保存 */
       }
     }
 
-    await writeTextFile(path, serialize(data));
+    await writeTextFile(path, text);
 
-    if (backupCount > 0) {
-      await pruneBackups(dir, fileName, backupCount);
+    if (opts.backupCount > 0) {
+      await pruneBackups(dir, fileName, opts.backupCount);
     }
-    return { ok: true, path };
+    return { ok: true, path, backedUp };
   } catch (err) {
     return { ok: false, path, error: String(err) };
   }
 }
 
-/** 列出某个目录下的备份文件（设置对话框里展示用） */
+/** 列出某个目录下的备份文件（设置对话框里展示用），新的在前 */
 export async function listBackups(path: string): Promise<string[]> {
   const dir = dirOf(path);
   const prefix = backupPrefix(baseNameOf(path));
