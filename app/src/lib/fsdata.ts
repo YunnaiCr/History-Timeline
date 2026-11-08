@@ -21,6 +21,11 @@ export function defaultDataDir(): Promise<string> {
   return invoke<string>("default_data_dir");
 }
 
+/** 程序所在目录（exe 的同级目录），导出默认存这里 */
+export function appDir(): Promise<string> {
+  return invoke<string>("app_dir");
+}
+
 export function ensureDir(path: string): Promise<void> {
   return invoke<void>("ensure_dir", { path });
 }

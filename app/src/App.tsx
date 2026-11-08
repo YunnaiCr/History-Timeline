@@ -11,7 +11,7 @@ import { emptyData, loadData, saveData, type DataFile } from "./lib/store";
 import { downloadJson, parseImport, exportFileName, mergeData } from "./lib/io";
 import { panBy, fitRange, zoomAt, type Viewport } from "./lib/viewport";
 import { loadSettings, saveSettings, type Settings } from "./lib/settings";
-import { defaultDataDir, dirOf, isDesktop, joinPath, pathExists } from "./lib/fsdata";
+import { appDir, defaultDataDir, dirOf, isDesktop, joinPath, pathExists } from "./lib/fsdata";
 import { loadDataFile, resolveDataPath, saveDataFile } from "./lib/repository";
 
 const MIN_PX_PER_DAY = 1e-4; // 一屏约 2000 年
@@ -42,6 +42,7 @@ export default function App() {
 
   // 数据文件相关
   const [dataDir, setDataDir] = useState<string>("");
+  const [exeDir, setExeDir] = useState<string>("");
   const [dataPath, setDataPath] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -95,6 +96,14 @@ export default function App() {
       }
 
       try {
+        // 程序所在目录：导出时默认存这里
+        try {
+          const exe = await appDir();
+          if (!cancelled) setExeDir(exe);
+        } catch {
+          /* 拿不到就退回数据目录的上一层 */
+        }
+
         const dir = s.dataDir ?? (await defaultDataDir());
         if (cancelled) return;
         setDataDir(dir);
@@ -388,8 +397,8 @@ export default function App() {
   /**
    * 导出为 JSON。
    *
-   * 桌面版弹「另存为」，默认目录是**数据文件的上一层**（默认即「文档」），
-   * 这样别人找起来方便，也不会像浏览器下载那样堆出 `(1)` `(2)`。
+   * 弹「另存为」，默认目录是**程序所在文件夹**——用户就是在这儿双击启动的，
+   * 找起来最直接。也可以改到任意位置。
    * 浏览器模式没有保存对话框，退回普通下载。
    */
   const handleExport = async () => {
@@ -398,7 +407,8 @@ export default function App() {
       return;
     }
     try {
-      const defaultPath = dataDir ? joinPath(dirOf(dataDir), exportFileName()) : exportFileName();
+      const baseDir = exeDir || (dataDir ? dirOf(dataDir) : "");
+      const defaultPath = baseDir ? joinPath(baseDir, exportFileName()) : exportFileName();
       const target = await save({
         title: "导出为 JSON",
         defaultPath,

@@ -19,6 +19,15 @@ fn default_data_dir(app: tauri::AppHandle) -> Result<String, String> {
     Ok(docs.join("历史事件线").to_string_lossy().to_string())
 }
 
+/// 程序所在目录（exe 的同级目录）。
+/// 导出 JSON 默认存这里——用户就在这个文件夹里双击打开的，找起来最直接。
+#[tauri::command]
+fn app_dir() -> Result<String, String> {
+    let exe = std::env::current_exe().map_err(|e| format!("取程序路径失败：{e}"))?;
+    let dir = exe.parent().ok_or_else(|| "程序路径没有父目录".to_string())?;
+    Ok(dir.to_string_lossy().to_string())
+}
+
 #[tauri::command]
 fn ensure_dir(path: String) -> Result<(), String> {
     fs::create_dir_all(PathBuf::from(&path)).map_err(|e| format!("创建目录失败：{e}"))
@@ -102,6 +111,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             default_data_dir,
+            app_dir,
             ensure_dir,
             path_exists,
             read_text_file,
