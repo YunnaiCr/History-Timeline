@@ -20,6 +20,16 @@ export interface DataFile {
   tags: Tag[];
 }
 
+/** 空库：没有任何事件、没有标签，但保留默认类别 */
+export function emptyData(): DataFile {
+  return {
+    version: 1,
+    events: [],
+    categories: structuredClone(seedCategories),
+    tags: [],
+  };
+}
+
 /** 首次运行时的初始数据（示例数据） */
 export function seedData(): DataFile {
   return {

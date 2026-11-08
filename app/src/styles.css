@@ -1102,6 +1102,80 @@ body {
   line-height: 1.5;
 }
 
+/* ---------- 设置对话框 ---------- */
+.set-path {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.set-path .dlg-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: #a8b2c4;
+}
+
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.set-hint {
+  font-size: 11px;
+  color: #6c7689;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.set-backups {
+  max-height: 110px;
+  overflow-y: auto;
+  background: #12151c;
+  border: 1px solid #2a3242;
+  border-radius: 6px;
+  padding: 6px 9px;
+}
+
+.set-backup-row {
+  font-size: 11px;
+  color: #8b93a3;
+  line-height: 1.8;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.dlg-preview.warn {
+  color: #d8b26a;
+  background: rgba(216, 166, 87, 0.1);
+  border-color: rgba(216, 166, 87, 0.3);
+}
+
+/* ---------- 底栏保存状态 ---------- */
+.save-state {
+  flex: none;
+  font-size: 11px;
+  min-width: 92px;
+  white-space: nowrap;
+}
+
+.ss-idle {
+  color: #5d6675;
+}
+
+.ss-saving {
+  color: #8b93a3;
+}
+
+.ss-saved {
+  color: #6fae7f;
+}
+
+.ss-error {
+  color: #ff9b9b;
+  font-weight: 600;
+}
+
 /* ---------- 保存失败提示条 ---------- */
 .save-error {
   display: flex;

@@ -4,10 +4,14 @@ import CanvasArea from "./components/CanvasArea";
 import EventDialog from "./components/EventDialog";
 import ManageDialog from "./components/ManageDialog";
 import DataTable from "./components/DataTable";
+import SettingsDialog from "./components/SettingsDialog";
 import type { Category, Tag, TimelineEvent } from "./data/sampleData";
-import { loadData, resetData, saveData, clearData, type DataFile } from "./lib/store";
+import { emptyData, loadData, saveData, seedData, type DataFile } from "./lib/store";
 import { downloadJson, parseImport, exportFileName, mergeData } from "./lib/io";
 import { panBy, fitRange, zoomAt, type Viewport } from "./lib/viewport";
+import { loadSettings, saveSettings, type Settings } from "./lib/settings";
+import { defaultDataDir, isDesktop, joinPath, pathExists } from "./lib/fsdata";
+import { loadDataFile, resolveDataPath, saveDataFile } from "./lib/repository";
 
 const MIN_PX_PER_DAY = 1e-4; // 一屏约 2000 年
 const MAX_PX_PER_DAY = 400; // 一屏几小时
@@ -23,16 +27,25 @@ const fitAll = (data: DataFile, width: number): Viewport => {
 };
 
 export default function App() {
-  // 只在首次渲染时读一次磁盘，三份状态共用
-  const [initial] = useState<DataFile>(() => loadData());
-  const [data, setData] = useState<DataFile>(initial);
-  const [vp, setVp] = useState<Viewport>(() => fitAll(initial, 1200));
-  const [activeCats, setActiveCats] = useState<Set<string>>(
-    () => new Set(initial.categories.map((c) => c.id))
-  );
+  const desktop = isDesktop();
+
+  // 设置（数据目录、文件名、备份份数）
+  const [settings, setSettings] = useState<Settings>(() => loadSettings());
+
+  const [data, setData] = useState<DataFile>(() => emptyData());
+  const [vp, setVp] = useState<Viewport>(() => fitAll(emptyData(), 1200));
+  const [activeCats, setActiveCats] = useState<Set<string>>(new Set());
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dragging, setDragging] = useState(false);
+
+  // 数据文件相关
+  const [dataDir, setDataDir] = useState<string>("");
+  const [dataPath, setDataPath] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [lastSavedAt, setLastSavedAt] = useState<string>("");
 
   // 编辑弹窗状态
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -53,16 +66,84 @@ export default function App() {
   const dragRef = useRef<{ x0: number; y0: number; startJdn: number; moved: boolean } | null>(null);
   const [canvasH, setCanvasH] = useState(600);
 
-  // 保存失败提示（localStorage 写满或不可用时必须让用户知道，否则会静默丢数据）
+  // 保存失败提示（写盘失败必须让用户知道，否则会静默丢数据）
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // 任何数据变更都自动落盘
+  /** 把一份数据装进界面：重置筛选、视口跟着数据走 */
+  const adoptData = useCallback((next: DataFile) => {
+    setData(next);
+    setActiveCats(new Set(next.categories.map((c) => c.id)));
+    setActiveTags(new Set());
+    setExpanded(new Set());
+    setVp((v) => fitAll(next, v.width || 1200));
+  }, []);
+
+  // ---------- 启动：定位数据文件并读取 ----------
   useEffect(() => {
-    const ok = saveData(data);
-    setSaveError(
-      ok ? null : "自动保存失败：本地存储可能已满或不可用。请立即用「导出 JSON」备份当前数据。"
-    );
-  }, [data]);
+    let cancelled = false;
+    (async () => {
+      const s = loadSettings();
+
+      if (!desktop) {
+        // 浏览器模式：没有文件系统，退回 localStorage
+        const local = loadData();
+        if (cancelled) return;
+        if (local.categories.length) adoptData(local);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const dir = s.dataDir ?? (await defaultDataDir());
+        if (cancelled) return;
+        setDataDir(dir);
+        const path = joinPath(dir, s.fileName);
+        setDataPath(path);
+
+        const res = await loadDataFile(path);
+        if (cancelled) return;
+        adoptData(res.data);
+        if (res.error) {
+          setSaveError(
+            `${res.error}\n\n为避免覆盖，应用已按空库启动。原文件未做任何修改；` +
+              `请先用记事本检查，或在「设置」里换一个文件名。`
+          );
+        }
+      } catch (e) {
+        if (!cancelled) setSaveError(`初始化数据目录失败：${String(e)}`);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [desktop, adoptData]);
+
+  // ---------- 保存：数据变化 600ms 后写盘 ----------
+  useEffect(() => {
+    if (loading) return;
+    setSaveState("saving");
+    const timer = window.setTimeout(async () => {
+      if (!desktop) {
+        const ok = saveData(data);
+        setSaveState(ok ? "saved" : "error");
+        if (!ok) setSaveError("浏览器本地存储写入失败，可能已满。请用「导出 JSON」备份。");
+        else setSaveError(null);
+        return;
+      }
+      const res = await saveDataFile(dataPath, data, settings.backupCount);
+      if (res.ok) {
+        setSaveState("saved");
+        setSaveError(null);
+        setLastSavedAt(new Date().toLocaleTimeString("zh-CN", { hour12: false }));
+      } else {
+        setSaveState("error");
+        setSaveError(`保存到文件失败：${res.error}\n\n请用「导出 JSON」备份当前数据。`);
+      }
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [data, dataPath, settings.backupCount, loading, desktop]);
 
   // 首次拿到真实宽度后，按全量数据自适应（用 layoutEffect 避免闪一下旧画面）
   useLayoutEffect(() => {
@@ -73,7 +154,8 @@ export default function App() {
       setCanvasH(Math.max(320, h - 46));
       if (!fitted && w > 0) {
         fitted = true;
-        setVp(fitAll(initial, w));
+        // 首次只设置宽度；数据的适配由 adoptData 负责，避免和异步加载打架
+        setVp((v) => ({ ...v, width: w }));
       } else {
         setVp((v) => ({ ...v, width: w }));
       }
@@ -248,12 +330,8 @@ export default function App() {
   }, []);
 
   const handleReset = () => {
-    if (!window.confirm("恢复为初始示例数据？你自己添加的事件会丢失。")) return;
-    const fresh = resetData();
-    setData(fresh);
-    setActiveCats(new Set(fresh.categories.map((c) => c.id)));
-    setActiveTags(new Set());
-    setVp(fitAll(fresh, vp.width));
+    if (!window.confirm("恢复为内置示例数据？你自己添加的事件会丢失。")) return;
+    adoptData(seedData());
   };
 
   /** 清空所有事件与标签（保留类别），便于从零开始录入 */
@@ -265,12 +343,48 @@ export default function App() {
     ) {
       return;
     }
-    const fresh = clearData();
-    setData(fresh);
-    setActiveCats(new Set(fresh.categories.map((c) => c.id)));
-    setActiveTags(new Set());
-    setVp(fitAll(fresh, vp.width));
+    adoptData(emptyData());
   };
+
+  // ---------- 设置 ----------
+  /** 应用新设置：目录或文件名变了就把数据迁过去 */
+  const applySettings = useCallback(
+    async (next: Settings) => {
+      const prev = settings;
+      setSettings(next);
+      saveSettings(next);
+      setSettingsOpen(false);
+      if (!desktop) return;
+
+      // 路径没变，什么也不用做
+      if (next.dataDir === prev.dataDir && next.fileName === prev.fileName) return;
+
+      try {
+        const newPath = await resolveDataPath(next);
+        const exists = await pathExists(newPath);
+        if (exists) {
+          // 目标已有数据：切过去（不覆盖）
+          const res = await loadDataFile(newPath);
+          setDataPath(newPath);
+          setDataDir(next.dataDir ?? (await defaultDataDir()));
+          adoptData(res.data);
+          setSaveError(res.error ?? null);
+          window.alert(`已切换到已有数据文件：\n${newPath}\n\n共 ${res.data.events.length} 条事件。`);
+        } else {
+          // 目标不存在：把当前数据存过去
+          const dir = next.dataDir ?? (await defaultDataDir());
+          setDataDir(dir);
+          setDataPath(newPath);
+          const res = await saveDataFile(newPath, data, next.backupCount);
+          if (!res.ok) setSaveError(`写入新位置失败：${res.error}`);
+          else window.alert(`数据已保存到新位置：\n${newPath}`);
+        }
+      } catch (e) {
+        setSaveError(`切换数据位置失败：${String(e)}`);
+      }
+    },
+    [settings, desktop, data, adoptData]
+  );
 
   // ---------- 导入 / 导出 ----------
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -486,8 +600,23 @@ export default function App() {
       )}
 
       <footer className="bottombar">
+        <div className="save-state">
+          {loading ? (
+            <span className="ss-idle">正在载入…</span>
+          ) : saveState === "saving" ? (
+            <span className="ss-saving">保存中…</span>
+          ) : saveState === "error" ? (
+            <span className="ss-error">保存失败</span>
+          ) : saveState === "saved" ? (
+            <span className="ss-saved" title={dataPath || "浏览器本地存储"}>
+              已保存{lastSavedAt ? ` ${lastSavedAt}` : ""}
+            </span>
+          ) : (
+            <span className="ss-idle">—</span>
+          )}
+        </div>
         <div className="hint">
-          拖动平移 · 滚轮缩放（或 ←/→、+/-）· 点「N ↓」放大到那一段 · 点卡片看详情
+          拖动平移 · 滚轮缩放 · 点「N ↓」放大到那一段 · 点卡片看详情
         </div>
         <div className="zoom-buttons">
           <button onClick={() => setVp((v) => zoomAt(v, v.width / 2, 1 / 1.4, MIN_PX_PER_DAY, MAX_PX_PER_DAY))}>−</button>
@@ -496,10 +625,10 @@ export default function App() {
         </div>
 
         <div className="data-buttons">
-          <button onClick={handleExport} title="导出为 JSON 文件，可备份 / 拷贝到别的电脑">
+          <button onClick={handleExport} title="另存为一份 JSON 文件（备份 / 交给别人）">
             导出 JSON
           </button>
-          <button onClick={() => fileRef.current?.click()} title="从 JSON 文件覆盖当前库">
+          <button onClick={() => fileRef.current?.click()} title="从 JSON 文件导入">
             导入 JSON
           </button>
           <button className="danger" onClick={handleClear} title="清空全部事件与标签，保留类别">
@@ -507,6 +636,9 @@ export default function App() {
           </button>
           <button onClick={handleReset} title="恢复为内置示例数据">
             恢复示例
+          </button>
+          <button onClick={() => setSettingsOpen(true)} title="数据目录、备份份数">
+            设置
           </button>
         </div>
 
@@ -546,6 +678,17 @@ export default function App() {
         onSaveCategories={saveCategories}
         onSaveTags={saveTags}
         onClose={() => setManageOpen(false)}
+      />
+
+      <SettingsDialog
+        open={settingsOpen}
+        settings={settings}
+        resolvedDir={dataDir || "（未初始化）"}
+        isDesktop={desktop}
+        onSave={(next) => {
+          void applySettings(next);
+        }}
+        onClose={() => setSettingsOpen(false)}
       />
 
       {/* 导入方式选择：合并 or 覆盖 */}
