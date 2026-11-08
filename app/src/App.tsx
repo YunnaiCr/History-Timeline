@@ -8,6 +8,7 @@ import SettingsDialog from "./components/SettingsDialog";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { Category, Tag, TimelineEvent } from "./data/schema";
 import { emptyData, loadData, saveData, type DataFile } from "./lib/store";
+import { emptyHistory, pushHistory, redo, undo, type History } from "./lib/history";
 import { downloadJson, parseImport, exportFileName, mergeData, serialize } from "./lib/io";
 import { panBy, fitRange, zoomAt, type Viewport } from "./lib/viewport";
 import { loadSettings, saveSettings, type Settings } from "./lib/settings";
@@ -86,8 +87,54 @@ export default function App() {
   /** 上一次成功写盘的文本，内容没变就不重复写 */
   const lastTextRef = useRef<string | null>(null);
 
-  /** 把一份数据装进界面：重置筛选、视口跟着数据走 */
+  // ---------- 撤销 / 重做 ----------
+  const [history, setHistory] = useState<History>(emptyHistory);
+  /** 与 data 同步的最新快照，供 mutate 在同一轮事件里连续调用时读到正确的前值 */
+  const dataRef = useRef<DataFile>(data);
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
+  /**
+   * 所有**用户操作导致**的数据变更都走这里，自动记录一步撤销。
+   *
+   * 载入/切换文件不走这里——那不是用户编辑，不该占用撤销栈。
+   */
+  const mutate = useCallback((updater: (d: DataFile) => DataFile) => {
+    const prev = dataRef.current;
+    const next = updater(prev);
+    if (next === prev) return;
+    setHistory((h) => pushHistory(h, prev));
+    dataRef.current = next;
+    setData(next);
+  }, []);
+
+  const doUndo = useCallback(() => {
+    const step = undo(history, dataRef.current);
+    if (!step) return;
+    setHistory(step.history);
+    dataRef.current = step.restore;
+    setData(step.restore);
+    setActiveCats(new Set(step.restore.categories.map((c) => c.id)));
+    setActiveTags((prev) => new Set([...prev].filter((id) => step.restore.tags.some((t) => t.id === id))));
+  }, [history]);
+
+  const doRedo = useCallback(() => {
+    const step = redo(history, dataRef.current);
+    if (!step) return;
+    setHistory(step.history);
+    dataRef.current = step.restore;
+    setData(step.restore);
+    setActiveCats(new Set(step.restore.categories.map((c) => c.id)));
+    setActiveTags((prev) => new Set([...prev].filter((id) => step.restore.tags.some((t) => t.id === id))));
+  }, [history]);
+
+  /**
+   * 把一份数据装进界面：重置筛选、视口跟着数据走。
+   * 用于载入/切换文件，**不进入撤销栈**——那不是用户编辑。
+   */
   const adoptData = useCallback((next: DataFile) => {
+    dataRef.current = next;
     setData(next);
     setActiveCats(new Set(next.categories.map((c) => c.id)));
     setActiveTags(new Set());
@@ -291,6 +338,36 @@ export default function App() {
     });
   }, [parentIds]);
 
+  // 全局快捷键：Ctrl+Z 撤销 / Ctrl+Y 或 Ctrl+Shift+Z 重做
+  // 挂在 window 上，输入框里也能用（但输入框自己的撤销优先，见下面的判断）
+  useEffect(() => {
+    const onWindowKeyDown = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+
+      const key = e.key.toLowerCase();
+      const isUndo = key === "z" && !e.shiftKey;
+      const isRedo = key === "y" || (key === "z" && e.shiftKey);
+      if (!isUndo && !isRedo) return;
+
+      // 在输入框/文本域里让浏览器自己处理，否则会打断打字
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName;
+      const typing =
+        tag === "INPUT" || tag === "TEXTAREA" || (el?.isContentEditable ?? false);
+      if (typing) return;
+
+      // 弹窗打开时不处理，避免和弹窗内的撤销冲突
+      if (dialogOpen || manageOpen || settingsOpen) return;
+
+      e.preventDefault();
+      if (isUndo) doUndo();
+      else doRedo();
+    };
+    window.addEventListener("keydown", onWindowKeyDown);
+    return () => window.removeEventListener("keydown", onWindowKeyDown);
+  }, [doUndo, doRedo, dialogOpen, manageOpen, settingsOpen]);
+
   // 键盘：←/→ 平移，+/- 缩放
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowLeft") setVp((v) => panBy(v, v.width * 0.15));
@@ -325,27 +402,33 @@ export default function App() {
     setDialogOpen(true);
   }, []);
 
-  const deleteEvent = useCallback((id: string) => {
-    setData((d) => {
-      // 删父事件时，子事件降级为顶层事件，不连坐删除
-      const events = d.events
-        .filter((e) => e.id !== id)
-        .map((e) => (e.parentId === id ? { ...e, parentId: undefined } : e));
-      return { ...d, events };
-    });
-  }, []);
+  const deleteEvent = useCallback(
+    (id: string) => {
+      mutate((d) => {
+        // 删父事件时，子事件降级为顶层事件，不连坐删除
+        const events = d.events
+          .filter((e) => e.id !== id)
+          .map((e) => (e.parentId === id ? { ...e, parentId: undefined } : e));
+        return { ...d, events };
+      });
+    },
+    [mutate]
+  );
 
-  const saveEvent = useCallback((ev: TimelineEvent, newTag?: Tag) => {
-    setData((d) => {
-      const exists = d.events.some((e) => e.id === ev.id);
-      const events = exists ? d.events.map((e) => (e.id === ev.id ? ev : e)) : [...d.events, ev];
-      const tags = newTag && !d.tags.some((t) => t.id === newTag.id) ? [...d.tags, newTag] : d.tags;
-      return { ...d, events, tags };
-    });
-    setDialogOpen(false);
-    setEditing(null);
-    setDialogParentId(undefined);
-  }, []);
+  const saveEvent = useCallback(
+    (ev: TimelineEvent, newTag?: Tag) => {
+      mutate((d) => {
+        const exists = d.events.some((e) => e.id === ev.id);
+        const events = exists ? d.events.map((e) => (e.id === ev.id ? ev : e)) : [...d.events, ev];
+        const tags = newTag && !d.tags.some((t) => t.id === newTag.id) ? [...d.tags, newTag] : d.tags;
+        return { ...d, events, tags };
+      });
+      setDialogOpen(false);
+      setEditing(null);
+      setDialogParentId(undefined);
+    },
+    [mutate]
+  );
 
   /**
    * 把某个事件框到视野中间。
@@ -373,16 +456,20 @@ export default function App() {
     });
   }, []);
 
-  /** 清空所有事件与标签（保留类别），便于从零开始录入 */
+  /** 清空所有事件与标签（保留类别），便于从零开始录入。可撤销 */
   const handleClear = () => {
     if (
       !window.confirm(
-        `清空全部 ${data.events.length} 条事件和 ${data.tags.length} 个标签？\n\n类别会保留。此操作不可撤销，建议先「导出 JSON」备份。`
+        `清空全部 ${data.events.length} 条事件和 ${data.tags.length} 个标签？\n\n类别会保留。清空后可以用 Ctrl+Z 撤销。`
       )
     ) {
       return;
     }
-    adoptData(emptyData());
+    const cleared = emptyData();
+    mutate(() => cleared);
+    setActiveCats(new Set(cleared.categories.map((c) => c.id)));
+    setActiveTags(new Set());
+    setVp(fitAll(cleared, vp.width));
   };
 
   // ---------- 设置 ----------
@@ -476,11 +563,11 @@ export default function App() {
     setPendingImport({ fileName: file.name, data: res.data });
   };
 
-  /** 合并：追加事件，冲突的 id 换新，不覆盖任何已有内容 */
+  /** 合并：追加事件，冲突的 id 换新，不覆盖任何已有内容（可撤销） */
   const applyMerge = () => {
     if (!pendingImport) return;
     const res = mergeData(data, pendingImport.data);
-    setData(res.data);
+    mutate(() => res.data);
     setActiveCats(new Set(res.data.categories.map((c) => c.id)));
     setVp(fitAll(res.data, vp.width));
     setPendingImport(null);
@@ -492,11 +579,11 @@ export default function App() {
     );
   };
 
-  /** 覆盖：整库替换成文件内容 */
+  /** 覆盖：整库替换成文件内容（可撤销） */
   const applyReplace = () => {
     if (!pendingImport) return;
     const next = pendingImport.data;
-    setData(next);
+    mutate(() => next);
     setActiveCats(new Set(next.categories.map((c) => c.id)));
     setActiveTags(new Set());
     setVp(fitAll(next, vp.width));
@@ -505,38 +592,44 @@ export default function App() {
 
   // ---------- 类别 / 标签管理 ----------
   /** 保存类别；被删掉的类别下的事件自动归到第一个剩下的类别，不丢事件 */
-  const saveCategories = useCallback((next: Category[]) => {
-    setData((d) => {
-      const ids = new Set(next.map((c) => c.id));
-      const fallback = next[0]?.id ?? "politics";
-      const events = d.events.map((e) =>
-        ids.has(e.categoryId) ? e : { ...e, categoryId: fallback }
-      );
-      return { ...d, categories: next, events };
-    });
-    setActiveCats((prev) => {
-      const ids = new Set(next.map((c) => c.id));
-      const kept = [...prev].filter((id) => ids.has(id));
-      return new Set(kept.length ? kept : next.map((c) => c.id));
-    });
-  }, []);
+  const saveCategories = useCallback(
+    (next: Category[]) => {
+      mutate((d) => {
+        const ids = new Set(next.map((c) => c.id));
+        const fallback = next[0]?.id ?? "politics";
+        const events = d.events.map((e) =>
+          ids.has(e.categoryId) ? e : { ...e, categoryId: fallback }
+        );
+        return { ...d, categories: next, events };
+      });
+      setActiveCats((prev) => {
+        const ids = new Set(next.map((c) => c.id));
+        const kept = [...prev].filter((id) => ids.has(id));
+        return new Set(kept.length ? kept : next.map((c) => c.id));
+      });
+    },
+    [mutate]
+  );
 
   /** 保存标签；被删标签从事件上摘掉 */
-  const saveTags = useCallback((next: Tag[], removedIds: string[]) => {
-    const gone = new Set(removedIds);
-    setData((d) => ({
-      ...d,
-      tags: next,
-      events: gone.size
-        ? d.events.map((e) =>
-            e.tagIds.some((t) => gone.has(t))
-              ? { ...e, tagIds: e.tagIds.filter((t) => !gone.has(t)) }
-              : e
-          )
-        : d.events,
-    }));
-    setActiveTags((prev) => new Set([...prev].filter((id) => !gone.has(id))));
-  }, []);
+  const saveTags = useCallback(
+    (next: Tag[], removedIds: string[]) => {
+      const gone = new Set(removedIds);
+      mutate((d) => ({
+        ...d,
+        tags: next,
+        events: gone.size
+          ? d.events.map((e) =>
+              e.tagIds.some((t) => gone.has(t))
+                ? { ...e, tagIds: e.tagIds.filter((t) => !gone.has(t)) }
+                : e
+            )
+          : d.events,
+      }));
+      setActiveTags((prev) => new Set([...prev].filter((id) => !gone.has(id))));
+    },
+    [mutate]
+  );
 
   const pxPerDayLabel =
     vp.pxPerDay > 1 ? `${vp.pxPerDay.toFixed(1)} px/天` : `1 天 = ${(1 / vp.pxPerDay).toFixed(0)} px⁻¹`;
@@ -691,6 +784,20 @@ export default function App() {
           拖动平移 · 滚轮缩放 · 点「N ↓」放大到那一段 · 点卡片看详情
         </div>
         <div className="zoom-buttons">
+          <button
+            onClick={doUndo}
+            disabled={history.past.length === 0}
+            title={`撤销 (Ctrl+Z)${history.past.length ? ` · 还有 ${history.past.length} 步` : ""}`}
+          >
+            ↶
+          </button>
+          <button
+            onClick={doRedo}
+            disabled={history.future.length === 0}
+            title={`重做 (Ctrl+Y)${history.future.length ? ` · 还有 ${history.future.length} 步` : ""}`}
+          >
+            ↷
+          </button>
           <button onClick={() => setVp((v) => zoomAt(v, v.width / 2, 1 / 1.4, MIN_PX_PER_DAY, MAX_PX_PER_DAY))}>−</button>
           <button onClick={() => setVp((v) => zoomAt(v, v.width / 2, 1.4, MIN_PX_PER_DAY, MAX_PX_PER_DAY))}>+</button>
           <button onClick={resetView}>复位</button>

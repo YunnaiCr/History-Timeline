@@ -749,8 +749,14 @@ body {
   cursor: pointer;
 }
 
-.zoom-buttons button:hover {
+.zoom-buttons button:hover:not(:disabled) {
   border-color: #4a5468;
+}
+
+/* 撤销/重做没有步数时置灰（仍然占位，避免按钮左右跳动） */
+.zoom-buttons button:disabled {
+  opacity: 0.32;
+  cursor: default;
 }
 
 .zoom-buttons button.danger {
