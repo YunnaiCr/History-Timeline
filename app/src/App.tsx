@@ -4,12 +4,14 @@ import CanvasArea from "./components/CanvasArea";
 import EventDialog from "./components/EventDialog";
 import ManageDialog from "./components/ManageDialog";
 import DataTable from "./components/DataTable";
+import Minimap from "./components/Minimap";
 import SettingsDialog from "./components/SettingsDialog";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { Category, Tag, TimelineEvent } from "./data/schema";
 import { emptyData, loadData, saveData, type DataFile } from "./lib/store";
 import { emptyHistory, pushHistory, redo, undo, type History } from "./lib/history";
-import { downloadJson, parseImport, exportFileName, mergeData, serialize } from "./lib/io";
+import { downloadJson, parseImport, parseDateIn, exportFileName, mergeData, serialize } from "./lib/io";
+import { dataRange } from "./lib/minimap";
 import { panBy, fitRange, zoomAt, type Viewport } from "./lib/viewport";
 import { loadSettings, saveSettings, type Settings } from "./lib/settings";
 import {
@@ -431,6 +433,38 @@ export default function App() {
   );
 
   /**
+   * 把某个时间点放到视野正中，保持当前缩放。
+   * 迷你地图点击、跳转输入框都用它。
+   */
+  const centerOn = useCallback((jdn: number) => {
+    setVp((v) => {
+      const span = v.pxPerDay > 0 ? v.width / v.pxPerDay : 365;
+      return { ...v, startJdn: jdn - span / 2 };
+    });
+  }, []);
+
+  /** 跳转到指定年份 */
+  const [yearInput, setYearInput] = useState("");
+  const [yearInvalid, setYearInvalid] = useState(false);
+
+  /** 迷你地图用的全域范围（跟着筛选结果走） */
+  const miniRange = useMemo(() => dataRange(filtered), [filtered]);
+
+  const jumpToYear = useCallback(() => {
+    const raw = yearInput.trim();
+    if (!raw) return;
+    const jdn = parseDateIn(raw);
+    if (jdn === null) {
+      setYearInvalid(true);
+      return;
+    }
+    setYearInvalid(false);
+    setYearInput("");
+    setView("timeline");
+    centerOn(jdn);
+  }, [yearInput, centerOn]);
+
+  /**
    * 把某个事件框到视野中间。
    *
    * 之前用固定 ±400 天，跨度差别很大的事件（一天的事 vs 四年的战争）框出来的
@@ -693,6 +727,25 @@ export default function App() {
           {allExpanded ? "收起全部子事件" : `展开全部子事件 (${parentIds.length})`}
         </button>
 
+        <div className="jump-group">
+          <input
+            className={"jump-input" + (yearInvalid ? " invalid" : "")}
+            value={yearInput}
+            placeholder="跳到年份"
+            title={yearInvalid ? "无法识别，试试 1911 或 -221" : "输入年份后回车跳转，支持公元前用负数"}
+            onChange={(e) => {
+              setYearInput(e.target.value);
+              setYearInvalid(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                jumpToYear();
+              }
+            }}
+          />
+        </div>
+
         <button className="chip add-event" onClick={openAdd} title="新增事件">
           ＋ 新增事件
         </button>
@@ -738,6 +791,18 @@ export default function App() {
               </span>
               <span>缩放 {pxPerDayLabel}</span>
             </div>
+
+            {miniRange && (
+              <Minimap
+                events={filtered}
+                categories={data.categories}
+                minJdn={miniRange.minJdn}
+                maxJdn={miniRange.maxJdn}
+                viewStart={vp.startJdn}
+                viewEnd={vp.startJdn + (vp.pxPerDay > 0 ? vp.width / vp.pxPerDay : 365)}
+                onSeek={centerOn}
+              />
+            )}
           </>
         ) : (
           <DataTable

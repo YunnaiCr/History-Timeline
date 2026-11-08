@@ -769,6 +769,88 @@ body {
   border-color: #a05050;
 }
 
+/* ---------- 跳转年份 ---------- */
+.jump-group {
+  flex: none;
+}
+
+.jump-input {
+  width: 92px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+.jump-input::placeholder {
+  color: #5d6675;
+}
+
+.jump-input:focus {
+  border-color: var(--accent);
+}
+
+.jump-input.invalid {
+  border-color: #a05050;
+  background: rgba(224, 92, 92, 0.12);
+}
+
+/* ---------- 迷你地图 ---------- */
+.minimap {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 8px;
+  height: 46px;
+  border-radius: 8px;
+  background: rgba(18, 21, 28, 0.72);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(3px);
+  padding: 4px 8px 0;
+  user-select: none;
+}
+
+.minimap-track {
+  position: relative;
+  height: 28px;
+  cursor: pointer;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.minimap-bar {
+  position: absolute;
+  bottom: 0;
+  border-radius: 1px 1px 0 0;
+  pointer-events: none;
+}
+
+/* 当前视口：半透明框 + 两侧亮边 */
+.minimap-view {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
+  background: rgba(120, 170, 255, 0.18);
+  pointer-events: none;
+  min-width: 2px;
+}
+
+.minimap-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #6c7689;
+  line-height: 12px;
+  padding: 0 2px;
+}
+
 /* ---------- 视图切换 ---------- */
 .view-switch {
   display: inline-flex;
