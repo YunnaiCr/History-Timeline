@@ -133,5 +133,30 @@ const dialog = readFileSync(join(SRC, "components/EventDialog.tsx"), "utf8");
 check("类别/标签/重要度用 div 容器", (dialog.match(/<div className="dlg-field">/g) ?? []).length >= 3);
 check("chip 按钮都写了 type=button", dialog.includes('type="button"'));
 
+// ---------- 坑 8：编辑必须真的落进当前时间线 ----------
+// 多时间线上线时踩过：setData 用 useCallback([currentId]) 捕获了 id，
+// 而 mutate 是空依赖的 useCallback，捕获的是**首次渲染**的 setData——
+// 那时 currentId 还是 null，于是所有编辑静默变成空操作（事件看似保存了，实际没写进库）。
+// 修复方式：setData 通过 ref 读当前 id，自身保持稳定。
+const appSrc = readFileSync(join(SRC, "App.tsx"), "utf8");
+check("App 有用 currentId 的 ref", /currentIdRef\s*=\s*useRef/.test(appSrc));
+check(
+  "写入当前时间线时读的是 ref 而不是状态变量",
+  /setLibrary\(\(lib\)\s*=>\s*\{[\s\S]{0,400}?currentIdRef\.current/.test(appSrc) ||
+    /const id = currentIdRef\.current;/.test(appSrc)
+);
+const setDataBlock = appSrc.match(/const setData = useCallback\([\s\S]*?\n\s{0,4}\[[^\]]*\]\n?\s*\);/);
+check(
+  "setData 的依赖数组里没有 currentId（否则会被空依赖的 mutate 捕获成旧值）",
+  !!setDataBlock && !/\[\s*currentId\s*\]/.test(setDataBlock[0]),
+  setDataBlock ? (setDataBlock[0].match(/\[[^\]]*\]\s*\);/g) ?? []).slice(-1)[0] : "未匹配到 setData"
+);
+
+// ---------- 坑 9：空时间线的默认视野必须是真实日期 ----------
+// 曾把 19000101 直接当儒略日传给 fitRange，等于把视口放在公元 5 万年附近，
+// 结果新建时间线后加的第一个事件永远在屏幕外，看起来像没保存。
+check("空库视野用 toJdn 构造真实日期", /toJdn\(1800,\s*1,\s*1\)/.test(appSrc));
+check("不再把 19000101 当儒略日用", !/fitRange\(\s*19000101/.test(appSrc));
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === 14 ? 0 : 1);
+process.exit(ok === 19 ? 0 : 1);

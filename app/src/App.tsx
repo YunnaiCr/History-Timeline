@@ -13,6 +13,7 @@ import { emptyHistory, pushHistory, redo, undo, type History } from "./lib/histo
 import { downloadJson, parseDateIn, exportFileName, mergeData, serializeTimeline, serializeLibrary, parseAny } from "./lib/io";
 import { dataRange } from "./lib/minimap";
 import { panBy, fitRange, zoomAt, type Viewport } from "./lib/viewport";
+import { toJdn } from "./lib/time";
 import { loadSettings, saveSettings, type Settings } from "./lib/settings";
 import {
   appDir,
@@ -54,7 +55,17 @@ const EXPORT_SUBDIR = "exports";
 
 const fitAll = (data: DataFile, width: number): Viewport => {
   if (data.events.length === 0) {
-    return fitRange(19000101, 19000102, width, 0.04, MIN_PX_PER_DAY, MAX_PX_PER_DAY);
+    // 空时间线：给一个像样的默认视野（公元 1800–2100）。
+    // 之前这里写的是 19000101，被当成儒略日用了，等于把视口放到公元 5 万年附近，
+    // 于是新建时间线后加的第一个事件永远在屏幕外，看起来像"没保存上"。
+    return fitRange(
+      toJdn(1800, 1, 1),
+      toJdn(2100, 1, 1),
+      width,
+      0.04,
+      MIN_PX_PER_DAY,
+      MAX_PX_PER_DAY
+    );
   }
   const minJ = Math.min(...data.events.map((e) => e.startJdn));
   const maxJ = Math.max(...data.events.map((e) => e.endJdn ?? e.startJdn));
@@ -82,21 +93,34 @@ export default function App() {
 
   /**
    * 兼容原有的 setData 调用点：写入的是**当前时间线**的内容。
-   * 直接改 library 里的对应条目，id / name / createdAt 不受影响。
+   *
+   * 注意必须用 ref 读当前时间线 id，不能把 currentId 放进依赖数组：
+   * `mutate` 是空依赖的 useCallback，它捕获的是**第一次渲染时**的 setData，
+   * 那时 currentId 还是 null，于是所有编辑都会静默变成空操作。
+   * 用 ref 后 setData 变成稳定函数，任何时机调用都能拿到最新的 id。
    */
+  const currentIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    currentIdRef.current = currentId;
+  }, [currentId]);
+
   const setData = useCallback(
     (action: DataFile | ((prev: DataFile) => DataFile)) => {
-      if (!currentId) return;
+      const id = currentIdRef.current;
+      if (!id) return;
       setLibrary((lib) => {
-        const idx = lib.timelines.findIndex((t) => t.id === currentId);
-        if (idx < 0) return lib;
+        const idx = lib.timelines.findIndex((t) => t.id === id);
+        if (idx < 0) {
+          console.warn("[data] 当前时间线已不在库里，编辑被丢弃：", id);
+          return lib;
+        }
         const prev = lib.timelines[idx];
         const next = typeof action === "function" ? action(prev) : action;
         if (next === prev) return lib;
-        return replaceTimeline(lib, currentId, next);
+        return replaceTimeline(lib, id, next);
       });
     },
-    [currentId]
+    []
   );
 
   const [vp, setVp] = useState<Viewport>(() => fitAll(EMPTY_DOC, 1200));
@@ -250,7 +274,7 @@ export default function App() {
         if (cancelled) return;
         setLibrary(res.library);
         const openId = res.library.lastOpenedId ?? res.library.timelines[0]?.id ?? null;
-        setCurrentId(openId);
+        setCurrentId(openId); currentIdRef.current = openId;
         const doc = res.library.timelines.find((t) => t.id === openId);
         if (doc) {
           dataRef.current = doc;
@@ -506,6 +530,24 @@ export default function App() {
         const tags = newTag && !d.tags.some((t) => t.id === newTag.id) ? [...d.tags, newTag] : d.tags;
         return { ...d, events, tags };
       });
+      // 保存的事件可能落在视野外（新建的空时间线、或者刚才平移到了别处）。
+      // 看不见就等于"没保存上"，所以这里主动把视野挪过去。
+      setVp((v) => {
+        const span = v.pxPerDay > 0 ? v.width / v.pxPerDay : 365;
+        const end = ev.endJdn ?? ev.startJdn;
+        const visible = ev.startJdn >= v.startJdn && end <= v.startJdn + span;
+        if (visible) return v;
+        const mid = (ev.startJdn + end) / 2;
+        const days = Math.max(365, (end - ev.startJdn) * 3);
+        return fitRange(
+          mid - days / 2,
+          mid + days / 2,
+          v.width,
+          0.02,
+          MIN_PX_PER_DAY,
+          MAX_PX_PER_DAY
+        );
+      });
       setDialogOpen(false);
       setEditing(null);
       setDialogParentId(undefined);
@@ -614,7 +656,7 @@ export default function App() {
           setDataDir(next.dataDir ?? (await defaultDataDir()));
           setLibrary(res.library);
           const openId = res.library.lastOpenedId ?? res.library.timelines[0]?.id ?? null;
-          setCurrentId(openId);
+          setCurrentId(openId); currentIdRef.current = openId;
           const doc = res.library.timelines.find((t) => t.id === openId);
           if (doc) {
             dataRef.current = doc;
@@ -653,7 +695,7 @@ export default function App() {
     (id: string) => {
       const doc = findTimeline(library, id);
       if (!doc) return;
-      setCurrentId(id);
+      setCurrentId(id); currentIdRef.current = id;
       setLibrary((lib) => ({ ...lib, lastOpenedId: id }));
       dataRef.current = doc;
       setActiveCats(new Set(doc.categories.map((c) => c.id)));
@@ -687,7 +729,7 @@ export default function App() {
       const source = vocabFromId ? findTimeline(library, vocabFromId) ?? undefined : undefined;
       const doc = newTimeline(name, source ? { vocabFrom: source } : undefined);
       setLibrary((lib) => addTimeline(lib, doc));
-      setCurrentId(doc.id);
+      setCurrentId(doc.id); currentIdRef.current = doc.id;
       dataRef.current = doc;
       setActiveCats(new Set(doc.categories.map((c) => c.id)));
       setActiveTags(new Set());
@@ -725,7 +767,7 @@ export default function App() {
         return;
       }
       setLibrary((lib) => removeTimeline(lib, id));
-      if (currentId === id) setCurrentId(null);
+      if (currentId === id) { setCurrentId(null); currentIdRef.current = null; }
     },
     [library, currentId]
   );
@@ -901,7 +943,7 @@ export default function App() {
     const lib = pendingLibrary.library;
     setLibrary(lib);
     const openId = lib.lastOpenedId ?? lib.timelines[0]?.id ?? null;
-    setCurrentId(openId);
+    setCurrentId(openId); currentIdRef.current = openId;
     const doc = lib.timelines.find((t) => t.id === openId);
     if (doc) {
       dataRef.current = doc;
