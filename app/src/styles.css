@@ -1015,6 +1015,30 @@ body {
   white-space: nowrap;
 }
 
+.tl-new-opt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #8b93a3;
+  cursor: pointer;
+}
+
+.tl-new-opt input {
+  accent-color: var(--accent);
+}
+
+.tl-new-select {
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
 /* ---------- 跳转年份 ---------- */
 .jump-group {
   flex: none;

@@ -129,5 +129,21 @@ check("报错指出是哪条线", badParsed.ok === false && badParsed.error.incl
 const emptyTimelines = parseAny(JSON.stringify({ version: 2, timelines: [] }), emptyData());
 check("空 timelines 被拒", emptyTimelines.ok === false);
 
+// ---------- 单线内部导入整库时挑哪一条 ----------
+const twoLines = L.addTimeline(migrated, L.newTimeline("欧洲"));
+check(
+  "只有一条线时直接用那条",
+  L.pickTimelineForImport(migrated, "随便")?.name === "我的时间线"
+);
+check(
+  "多条线时按名字匹配",
+  L.pickTimelineForImport(twoLines, "欧洲")?.name === "欧洲"
+);
+check(
+  "多条线且无同名时返回 null",
+  L.pickTimelineForImport(twoLines, "亚洲") === null
+);
+check("空库返回 null", L.pickTimelineForImport({ version: 2, lastOpenedId: null, timelines: [] }, "x") === null);
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === 45 ? 0 : 1);
+process.exit(ok === 49 ? 0 : 1);

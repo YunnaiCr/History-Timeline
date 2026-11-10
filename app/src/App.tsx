@@ -10,7 +10,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import type { Category, Tag, TimelineEvent } from "./data/schema";
 import { emptyData, loadData, saveData, type DataFile } from "./lib/store";
 import { emptyHistory, pushHistory, redo, undo, type History } from "./lib/history";
-import { downloadJson, parseImport, parseDateIn, exportFileName, mergeData, serializeTimeline, serializeLibrary, parseAny } from "./lib/io";
+import { downloadJson, parseDateIn, exportFileName, mergeData, serializeTimeline, serializeLibrary, parseAny } from "./lib/io";
 import { dataRange } from "./lib/minimap";
 import { panBy, fitRange, zoomAt, type Viewport } from "./lib/viewport";
 import { loadSettings, saveSettings, type Settings } from "./lib/settings";
@@ -34,6 +34,7 @@ import {
   findTimeline,
   nameTaken,
   newTimeline,
+  pickTimelineForImport,
   removeTimeline,
   renameTimeline,
   replaceTimeline,
@@ -126,6 +127,14 @@ export default function App() {
   const [pendingImport, setPendingImport] = useState<{
     fileName: string;
     data: DataFile;
+    /** 如果来源是整库文件，记下用的是哪条线 */
+    fromTimeline?: string;
+  } | null>(null);
+
+  /** 首页导入整库时，待确认"追加还是替换" */
+  const [pendingLibrary, setPendingLibrary] = useState<{
+    fileName: string;
+    library: Library;
   } | null>(null);
 
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -670,12 +679,13 @@ export default function App() {
   }, [currentId, vp.startJdn, vp.pxPerDay]);
 
   const createTimeline = useCallback(
-    (name: string) => {
+    (name: string, vocabFromId?: string | null) => {
       if (nameTaken(library, name)) {
         window.alert(`已经有一条叫「${name}」的时间线了，换个名字。`);
         return;
       }
-      const doc = newTimeline(name);
+      const source = vocabFromId ? findTimeline(library, vocabFromId) ?? undefined : undefined;
+      const doc = newTimeline(name, source ? { vocabFrom: source } : undefined);
       setLibrary((lib) => addTimeline(lib, doc));
       setCurrentId(doc.id);
       dataRef.current = doc;
@@ -821,38 +831,86 @@ export default function App() {
   const handleImportFile = async (file: File) => {
     const text = await file.text();
 
-    // 首页导入：整库追加为新时间线；单条时间线文件也变成本库的一条新线
+    // 首页导入：整库文件先问"追加还是替换"；单条文件直接作为一条新线
     if (importTargetRef.current === "library") {
       const any = parseAny(text, emptyData());
       if (!any.ok || !any.value) {
         window.alert(`导入失败：${any.error ?? "未知错误"}`);
         return;
       }
-      const incoming: TimelineDoc[] =
-        any.value.kind === "library" ? any.value.library.timelines : [any.value.doc];
-      let added = 0;
-      setLibrary((lib) => {
-        let next = lib;
-        for (const doc of incoming) {
-          let name = doc.name;
-          let n = 2;
-          while (nameTaken(next, name)) name = `${doc.name} (${n++})`;
-          next = addTimeline(next, { ...doc, id: `${doc.id}-${Date.now().toString(36)}-${added}`, name });
-          added++;
-        }
-        return next;
-      });
-      window.alert(`已导入 ${incoming.length} 条时间线，可在首页看到。`);
+      if (any.value.kind === "timeline") {
+        appendTimelines([any.value.doc]);
+        return;
+      }
+      setPendingLibrary({ fileName: file.name, library: any.value.library });
       return;
     }
 
-    const res = parseImport(text, data);
-    if (!res.ok || !res.data) {
-      window.alert(`导入失败：${res.error ?? "未知错误"}`);
+    // 时间线内部导入：整库文件也能用，挑其中一条
+    const any = parseAny(text, data);
+    if (!any.ok || !any.value) {
+      window.alert(`导入失败：${any.error ?? "未知错误"}`);
       return;
     }
-    // 不直接写入，先让用户选"合并"还是"覆盖"
-    setPendingImport({ fileName: file.name, data: res.data });
+    if (any.value.kind === "library") {
+      const picked = pickTimelineForImport(any.value.library, currentDoc?.name ?? "");
+      if (!picked) {
+        const names = any.value.library.timelines.map((t) => `「${t.name}」`).join("、");
+        window.alert(
+          `这是一个包含 ${any.value.library.timelines.length} 条时间线的整库文件：${names}\n\n` +
+            `其中没有和当前时间线同名的条目。\n` +
+            `请到首页用「导入」导入，或把文件里那条线改成与当前线同名再试。`
+        );
+        return;
+      }
+      setPendingImport({
+        fileName: `${file.name} → 「${picked.name}」`,
+        data: picked,
+        fromTimeline: picked.name,
+      });
+      return;
+    }
+
+    setPendingImport({ fileName: file.name, data: any.value.doc });
+  };
+
+  /** 把若干条时间线追加进库（重名自动加后缀） */
+  const appendTimelines = (incoming: TimelineDoc[]) => {
+    if (incoming.length === 0) return;
+    setLibrary((lib) => {
+      let next = lib;
+      let i = 0;
+      for (const doc of incoming) {
+        let name = doc.name;
+        let n = 2;
+        while (nameTaken(next, name)) name = `${doc.name} (${n++})`;
+        next = addTimeline(next, {
+          ...doc,
+          id: `${doc.id}-${Date.now().toString(36)}-${i++}`,
+          name,
+        });
+      }
+      return next;
+    });
+    window.alert(`已导入 ${incoming.length} 条时间线，可在首页看到。`);
+  };
+
+  /** 用文件里的整库**替换**当前库 */
+  const replaceLibrary = () => {
+    if (!pendingLibrary) return;
+    const lib = pendingLibrary.library;
+    setLibrary(lib);
+    const openId = lib.lastOpenedId ?? lib.timelines[0]?.id ?? null;
+    setCurrentId(openId);
+    const doc = lib.timelines.find((t) => t.id === openId);
+    if (doc) {
+      dataRef.current = doc;
+      setActiveCats(new Set(doc.categories.map((c) => c.id)));
+      setActiveTags(new Set());
+    }
+    setScreen("home");
+    setPendingLibrary(null);
+    window.alert(`已替换为文件里的 ${lib.timelines.length} 条时间线。`);
   };
 
   /** 合并：追加事件，冲突的 id 换新，不覆盖任何已有内容（可撤销） */
@@ -1222,6 +1280,59 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
       />
 
+      {/* 首页导入整库：追加 or 替换 */}
+      {pendingLibrary && (
+        <div className="dialog-mask" onMouseDown={() => setPendingLibrary(null)}>
+          <div className="dialog narrow" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="dlg-head">
+              <span>导入时间线库</span>
+              <button className="dlg-x" onClick={() => setPendingLibrary(null)}>
+                ×
+              </button>
+            </div>
+            <div className="dlg-body">
+              <div className="imp-file">{pendingLibrary.fileName}</div>
+              <div className="imp-stat">
+                文件里有 <b>{pendingLibrary.library.timelines.length}</b> 条时间线，共{" "}
+                <b>
+                  {pendingLibrary.library.timelines.reduce((n, t) => n + t.events.length, 0)}
+                </b>{" "}
+                个事件
+                <br />
+                当前库有 <b>{library.timelines.length}</b> 条时间线
+              </div>
+
+              <div className="imp-options">
+                <button
+                  className="imp-opt primary"
+                  onClick={() => {
+                    const incoming = pendingLibrary.library.timelines;
+                    setPendingLibrary(null);
+                    appendTimelines(incoming);
+                  }}
+                >
+                  <span className="imp-opt-title">追加为新的时间线</span>
+                  <span className="imp-opt-desc">
+                    现有的 {library.timelines.length} 条线保持不变，文件里的每条线各变成一条新线
+                  </span>
+                </button>
+                <button className="imp-opt danger" onClick={replaceLibrary}>
+                  <span className="imp-opt-title">替换整个库（清空后写入）</span>
+                  <span className="imp-opt-desc">
+                    当前的 {library.timelines.length} 条时间线会全部消失，只保留文件里的内容
+                  </span>
+                </button>
+              </div>
+            </div>
+            <div className="dlg-foot">
+              <button className="dlg-btn ghost" onClick={() => setPendingLibrary(null)}>
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 导入方式选择：合并 or 覆盖 */}
       {pendingImport && (
         <div className="dialog-mask" onMouseDown={() => setPendingImport(null)}>
@@ -1235,6 +1346,12 @@ export default function App() {
             <div className="dlg-body">
               <div className="imp-file">{pendingImport.fileName}</div>
               <div className="imp-stat">
+                {pendingImport.fromTimeline && (
+                  <>
+                    来自整库文件里的「{pendingImport.fromTimeline}」
+                    <br />
+                  </>
+                )}
                 文件里有 <b>{pendingImport.data.events.length}</b> 条事件、
                 <b>{pendingImport.data.categories.length}</b> 个类别、
                 <b>{pendingImport.data.tags.length}</b> 个标签

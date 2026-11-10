@@ -160,6 +160,18 @@ export function nameTaken(lib: Library, name: string, exceptId?: string): boolea
   return lib.timelines.some((t) => t.id !== exceptId && t.name === clean);
 }
 
+/**
+ * 在时间线内部导入一个"整库文件"时，挑哪一条线用。
+ *
+ * 规则：先找同名的；只有一条就直接用；多条且无同名则返回 null（让用户去首页导入）。
+ */
+export function pickTimelineForImport(lib: Library, currentName: string): TimelineDoc | null {
+  if (lib.timelines.length === 0) return null;
+  if (lib.timelines.length === 1) return lib.timelines[0];
+  const same = lib.timelines.find((t) => t.name === normalizeName(currentName));
+  return same ?? null;
+}
+
 /** 只读快照，便于类型收窄 */
 export function isTimelineDoc(v: unknown): v is TimelineDoc {
   const d = v as TimelineDoc;

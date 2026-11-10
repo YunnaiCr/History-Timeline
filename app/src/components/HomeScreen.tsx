@@ -8,7 +8,7 @@ import { fromJdn, toHistoricalYear } from "../lib/time";
 interface Props {
   library: Library;
   onOpen: (id: string) => void;
-  onCreate: (name: string) => void;
+  onCreate: (name: string, vocabFromId?: string | null) => void;
   onRename: (id: string, name: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
@@ -74,6 +74,8 @@ export default function HomeScreen({
   dataPath,
 }: Props) {
   const [newName, setNewName] = useState("");
+  const [copyVocab, setCopyVocab] = useState(false);
+  const [vocabSource, setVocabSource] = useState<string>("");
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -101,7 +103,7 @@ export default function HomeScreen({
   const create = () => {
     const clean = normalizeName(newName);
     if (!clean) return;
-    onCreate(clean);
+    onCreate(clean, copyVocab ? vocabSource || library.timelines[0]?.id : null);
     setNewName("");
   };
 
@@ -213,6 +215,31 @@ export default function HomeScreen({
               if (e.key === "Enter") create();
             }}
           />
+
+          <label className="tl-new-opt" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={copyVocab}
+              onChange={(e) => setCopyVocab(e.target.checked)}
+            />
+            复制类别和标签
+          </label>
+
+          {copyVocab && (
+            <select
+              className="tl-new-select"
+              value={vocabSource || library.timelines[0]?.id || ""}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setVocabSource(e.target.value)}
+            >
+              {library.timelines.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          )}
+
           <button
             className="hm-btn primary"
             onClick={(e) => {
@@ -223,7 +250,9 @@ export default function HomeScreen({
           >
             新建
           </button>
-          <div className="tl-new-hint">新建的线是空的，类别用默认的五个</div>
+          <div className="tl-new-hint">
+            {copyVocab ? "事件不会复制，只带类别和标签" : "新建的线是空的，类别用默认的五个"}
+          </div>
         </div>
       </div>
     </div>
