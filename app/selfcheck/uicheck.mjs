@@ -213,5 +213,16 @@ check(
   )
 );
 
+// ---------- 坑 14：换时间线要清掉面板和悬停 ----------
+// CanvasArea 不会因为换线而卸载，selected 里存的是上一张线的快照。
+// 不清掉的话，面板会继续显示旧线的事件，"编辑"还会打开一条不属于当前线的事件。
+check("CanvasArea 接收 timelineId", /timelineId\?: string/.test(canvasSrc));
+check(
+  "换线时清空面板与悬停",
+  /useEffect\(\(\)\s*=>\s*\{[\s\S]{0,120}?setSelected\(null\)[\s\S]{0,80}?setHover\(null\)[\s\S]{0,40}?\},\s*\[timelineId\]\)/.test(
+    canvasSrc
+  )
+);
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === 36 ? 0 : 1);
+process.exit(ok === 38 ? 0 : 1);

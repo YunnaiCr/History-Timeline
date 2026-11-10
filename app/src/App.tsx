@@ -1189,6 +1189,7 @@ export default function App() {
               onDeleteEvent={deleteEvent}
               onAddChild={openAddChild}
               showDates={settings.showDates}
+              timelineId={currentId ?? undefined}
             />
             <div className="hud">
               <span>

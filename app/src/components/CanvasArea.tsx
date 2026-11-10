@@ -33,6 +33,8 @@ interface Props {
   onAddChild?: (parentId: string) => void;
   /** 全局是否显示卡片上的时间文本（事件自己的 hideDate 优先级更高） */
   showDates?: boolean;
+  /** 当前时间线 id：变了就说明换了一条线，面板/悬停要清掉 */
+  timelineId?: string;
 }
 
 const GUTTER = 16;
@@ -140,6 +142,7 @@ export default function CanvasArea({
   onDeleteEvent,
   onAddChild,
   showDates = true,
+  timelineId,
 }: Props) {
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const tagMap = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
@@ -155,6 +158,12 @@ export default function CanvasArea({
   useEffect(() => {
     if (selected) panelRef.current?.focus();
   }, [selected]);
+
+  // 换了一条时间线：面板和悬停都清掉，别让上一张线的事件残留在画面上
+  useEffect(() => {
+    setSelected(null);
+    setHover(null);
+  }, [timelineId]);
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
   const areaRef = useRef<HTMLDivElement | null>(null);
   const [areaRect, setAreaRect] = useState({ left: 0, top: 0 });
