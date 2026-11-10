@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import type { Viewport } from "../lib/viewport";
 import { jdnToX } from "../lib/viewport";
 import type { Category, Tag, TimelineEvent } from "../data/schema";
-import { yearOnlyText } from "../lib/time";
+import { eventDateLabel } from "../lib/display";
 import {
   assignLanes,
   buildNodes,
@@ -48,14 +48,9 @@ const LANE_H_MIN = 44;
  *  - full  用事件自己的 dateText（可以手写"约公元前1600年"）
  *  - year  只显示年份
  *  - none  不显示
- * 旧字段 hideDate 等价于 none。
+ * 实现在 lib/display.ts，和表格、详情面板共用同一份逻辑。
  */
-function dateLabelOf(ev: TimelineEvent): string | null {
-  const mode = ev.dateDisplay ?? (ev.hideDate ? "none" : "full");
-  if (mode === "none") return null;
-  if (mode === "year") return yearOnlyText(ev.startJdn, ev.endJdn);
-  return ev.dateText || null;
-}
+
 
 /** 子事件带：轴线正上方，最多 3 层，永远不会越过轴线 */
 const CHILD_ROWS = 3;
@@ -621,8 +616,8 @@ export default function CanvasArea({
               >
                 <div className="event-dot" style={{ background: cat?.color ?? "#999" }} />
                 <div className="event-title">{ev.title}</div>
-                {showDates && dateLabelOf(ev) !== null && (
-                  <div className="event-date">{dateLabelOf(ev)}</div>
+                {showDates && eventDateLabel(ev) !== null && (
+                  <div className="event-date">{eventDateLabel(ev)}</div>
                 )}
                 <div className="event-tags">
                   <span className="cat-chip" style={{ background: cat?.color }}>

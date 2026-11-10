@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Category, Tag, TimelineEvent } from "../data/schema";
-import { formatJdn } from "../lib/time";
+import { eventDateLabelOrDash } from "../lib/display";
 
 interface Props {
   events: TimelineEvent[];
@@ -151,7 +151,7 @@ export default function DataTable({
               const cat = catMap.get(ev.categoryId);
               return (
                 <tr key={ev.id} onDoubleClick={() => onSelect(ev)} title="双击在时间轴中定位">
-                  <td className="col-time">{formatJdn(ev.startJdn)}</td>
+                  <td className="col-time">{eventDateLabelOrDash(ev)}</td>
                   <td className="col-title">
                     <span className="title-indent" style={{ paddingLeft: depth * 16 }} />
                     {depth > 0 && <span className="tree-mark">└</span>}
