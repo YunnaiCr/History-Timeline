@@ -91,7 +91,8 @@ check("空状态不引用视口变量", !/placed(Cards|Clusters)/.test(cond), `�
 // 所以指针落在按钮区时必须主动隐藏悬浮窗。
 check(
   "指针在卡片按钮上时隐藏悬浮窗",
-  /overCardActions/.test(canvasSrc) && /className="card-actions"[\s\S]{0,120}onMouseEnter=\{hideHover\}/.test(canvasSrc)
+  /closest\(["']\.card-actions["']\)/.test(canvasSrc) &&
+    /className="card-actions"[\s\S]{0,120}onMouseEnter=\{hideHover\}/.test(canvasSrc)
 );
 
 // ---------- 坑 5：簇徽标箭头方向 ----------
@@ -165,16 +166,25 @@ check("预览用 shownText（手写优先）", /shownText/.test(dialog));
 check("预览标出轴线位置", /轴线位置/.test(dialog));
 check("只有用户改过才提示轴线位置", /usingCustomText/.test(dialog));
 
-// ---------- 坑 11：从卡片操作按钮移回卡片主体，提示要能恢复 ----------
-// 踩过：卡片右下角有"编辑/删除/子事件"三个按钮。鼠标先停在按钮上（提示被取消），
-// 再移回卡片主体时，因为按钮是卡片的子元素，mouseenter 不会重新触发，
-// 于是这张卡的悬停提示永久失效，直到离开卡片再进来。
+// ---------- 坑 11：悬停提示必须由指针位置驱动 ----------
+// 踩过两次：用 mouseenter 安排、mouseleave 取消。鼠标在元素内部移动时 enter 不再
+// 触发，于是"从卡片按钮移回卡片"、"从别处移进来"两种情况提示都会永久失效。
+// 现在改成每次 pointermove 看指针底下是什么，key 变了才重置计时器。
+check("悬停由 pointermove 统一判定", /updateHoverFromPointer/.test(canvasSrc));
+check("卡片带 data-ev-id", /data-ev-id=\{ev\.id\}/.test(canvasSrc));
+check("簇徽标带 data-cluster-ids", /data-cluster-ids=\{/.test(canvasSrc));
+check("子事件 chip 带 data-ev-id", /data-ev-id=\{kid\.id\}/.test(canvasSrc));
+check("同一目标不重复重置计时器", /key === hoverKeyRef\.current\)\s*return/.test(canvasSrc));
+
+// ---------- 坑 12：点详情面板外面要能关掉 ----------
 check(
-  "卡片在 mousemove 时会重新安排悬停提示",
-  /onMouseMove=\{[\s\S]{0,220}?scheduleHover\(ev/.test(canvasSrc),
-  "卡片缺少 hover 恢复逻辑"
+  "点击面板外部关闭",
+  /closest\(["']\.detail-panel["']\)\)\s*return/.test(canvasSrc)
 );
-check("重新安排前会检查没有待触发的计时器", /hoverTimer\.current !== null\)\s*return/.test(canvasSrc));
+check(
+  "点其他卡片不当作外部（交给卡片切换）",
+  /closest\(["']\[data-ev-id\], \[data-cluster-ids\]["']\)\)\s*return/.test(canvasSrc)
+);
 
 console.log(`\n${ok} passed.`);
-process.exit(ok === 24 ? 0 : 1);
+process.exit(ok === 29 ? 0 : 1);

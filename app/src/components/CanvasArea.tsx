@@ -256,28 +256,67 @@ export default function CanvasArea({
     }
   };
 
-  const scheduleHover = (ev: TimelineEvent, el?: HTMLElement | null) => {
-    cancelHover();
-    const delay = hoverSeenRef.current ? 200 : 900;
-    const rect = el?.getBoundingClientRect();
-    hoverTimer.current = window.setTimeout(() => {
-      hoverSeenRef.current = true;
-      setHover({ kind: "event", ev, rect });
-    }, delay);
-  };
+  /**
+   * 悬停提示：**完全由指针位置驱动**。
+   *
+   * 之前用 mouseenter 安排、mouseleave 取消，踩了两次坑（从卡片按钮移回卡片、
+   * 从别处移进来不触发），因为 enter 只在"进入元素"那一刻发生，鼠标在元素内部
+   * 移动时不会再来一次。现在每次 pointermove 都看指针底下是什么：
+   *
+   *   指针下的目标 → 算出 key（事件 id / 簇 id / 无）
+   *   key 变了才重置计时器；key 没变就什么也不做
+   *
+   * 这样无论从哪儿进来、在元素内部怎么动，状态都和指针位置一致。
+   */
+  const hoverKeyRef = useRef<string | null>(null);
 
-  /** 簇徽标：列出簇内的所有事件（取代原生 title，避免两个框叠在一起） */
-  const scheduleClusterHover = (items: TimelineEvent[], el?: HTMLElement | null) => {
+  const updateHoverFromPointer = (target: EventTarget | null) => {
+    const el = target instanceof HTMLElement ? target : null;
+    if (!el) return;
+
+    // 卡片右下角的操作按钮上不弹提示（否则提示框正好压住按钮）
+    if (el.closest(".card-actions")) {
+      hoverKeyRef.current = null;
+      cancelHover();
+      setHover(null);
+      return;
+    }
+
+    const cardEl = el.closest<HTMLElement>("[data-ev-id]");
+    const clusterEl = el.closest<HTMLElement>("[data-cluster-ids]");
+    const key = cardEl
+      ? `e:${cardEl.dataset.evId}`
+      : clusterEl
+        ? `c:${clusterEl.dataset.clusterIds}`
+        : null;
+
+    if (key === hoverKeyRef.current) return; // 同一个目标，保持现状
+    hoverKeyRef.current = key;
     cancelHover();
+
+    if (!key) {
+      setHover(null);
+      return;
+    }
+
+    const anchor = (cardEl ?? clusterEl)!;
+    const rect = anchor.getBoundingClientRect();
     const delay = hoverSeenRef.current ? 200 : 900;
-    const rect = el?.getBoundingClientRect();
     hoverTimer.current = window.setTimeout(() => {
       hoverSeenRef.current = true;
-      setHover({ kind: "cluster", items, rect });
+      if (cardEl) {
+        const ev = eventMap.get(cardEl.dataset.evId ?? "");
+        if (ev) setHover({ kind: "event", ev, rect });
+      } else {
+        const ids = (clusterEl?.dataset.clusterIds ?? "").split(",").filter(Boolean);
+        const items = ids.map((id) => eventMap.get(id)).filter((x): x is TimelineEvent => !!x);
+        if (items.length) setHover({ kind: "cluster", items, rect });
+      }
     }, delay);
   };
 
   const hideHover = () => {
+    hoverKeyRef.current = null;
     cancelHover();
     setHover(null);
   };
@@ -287,14 +326,27 @@ export default function CanvasArea({
     setSelected({ ev, x, y, w, h });
   };
 
-  // Esc 关闭详情面板
+  // Esc 或点击面板外部关闭详情面板
   useEffect(() => {
+    if (!selected) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setSelected(null);
     };
+    const onPointerDown = (e: PointerEvent) => {
+      const t = e.target instanceof HTMLElement ? e.target : null;
+      if (!t) return;
+      // 面板内部：不关
+      if (t.closest(".detail-panel")) return;
+      // 点在另一张卡片/子事件/簇上：交给它们自己的 onClick 去切换
+      if (t.closest("[data-ev-id], [data-cluster-ids]")) return;
+      setSelected(null);
+    };
     window.addEventListener("keydown", onKey);
+    // 捕获阶段：先于画布的平移逻辑，点空白处立刻关掉，不会被拖拽吞掉
+    window.addEventListener("pointerdown", onPointerDown, true);
     return () => {
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onPointerDown, true);
       cancelHover();
     };
   }, []);
@@ -456,15 +508,6 @@ export default function CanvasArea({
     target instanceof HTMLElement &&
     target.closest(".event-card, .child-chip, .cluster-badge, .detail-panel") !== null;
 
-  /**
-   * 卡片的快捷按钮（＋ ✎ 🗑）在悬停时才出现。
-   * 悬浮窗的位置是在"弹出的那一刻"算定的，之后鼠标移动不会跟着走，
-   * 所以鼠标一移到底部按钮上，那个框就正好压住按钮。
-   * 这里约定：鼠标落在 .card-actions 上时一律不显示悬浮窗。
-   */
-  const overCardActions = (target: EventTarget | null) =>
-    target instanceof HTMLElement && target.closest(".card-actions") !== null;
-
   return (
     <div
       className="canvas-area"
@@ -476,12 +519,7 @@ export default function CanvasArea({
       }}
       onPointerMove={(e) => {
         pointerRef.current = { x: e.clientX, y: e.clientY };
-        if (overCardActions(e.target)) {
-          if (hover) hideHover();
-          cancelHover();
-          return;
-        }
-        if (hover && !isInteractive(e.target)) hideHover();
+        updateHoverFromPointer(e.target);
       }}
     >
       <div className="timeline-axis" style={{ top: LINE_Y }} />
@@ -520,8 +558,7 @@ export default function CanvasArea({
             key={`${parentId}-${kid.id}`}
             className="child-chip"
             style={{ left, top, width, borderLeftColor: parentCat?.color ?? "#888" }}
-            onMouseEnter={(e) => scheduleHover(kid, e.currentTarget as HTMLElement)}
-            onMouseLeave={hideHover}
+            data-ev-id={kid.id}
             onClick={(e) => {
               e.stopPropagation();
               const el = e.currentTarget as HTMLElement;
@@ -549,10 +586,7 @@ export default function CanvasArea({
               Math.max(...evs.map((it) => it.endJdn ?? it.startJdn))
             );
           }}
-          onMouseEnter={(e) =>
-            scheduleClusterHover((node as ClusterNode).events, e.currentTarget as HTMLElement)
-          }
-          onMouseLeave={hideHover}
+          data-cluster-ids={(node as ClusterNode).events.map((it) => it.id).join(",")}
         >
           <span className="cluster-count">{(node as ClusterNode).events.length}</span>
           <span className="cluster-icon">↓</span>
@@ -605,18 +639,7 @@ export default function CanvasArea({
                   (compact ? " compact" : "")
                 }
                 style={{ left: x, top: cardTop, borderLeftColor: cat?.color ?? "#999" }}
-                onMouseEnter={(e) => scheduleHover(ev, e.currentTarget as HTMLElement)}
-                /*
-                 * 从卡片右下角的操作按钮（编辑/删除/子事件）移回卡片主体时，
-                 * mouseenter 不会再触发（按钮是卡片的子元素），提示就永远弹不出来了。
-                 * 这里补一次重新计时：只在"当前没有提示、也没有待触发的计时器"时做。
-                 */
-                onMouseMove={(e) => {
-                  if (hover !== null || hoverTimer.current !== null) return;
-                  if (overCardActions(e.target)) return;
-                  scheduleHover(ev, e.currentTarget as HTMLElement);
-                }}
-                onMouseLeave={hideHover}
+                data-ev-id={ev.id}
                 onClick={(e) => {
                   e.stopPropagation();
                   // 用真实 DOM 尺寸，面板才能精确地摆在卡片旁边
