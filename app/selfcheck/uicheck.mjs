@@ -203,5 +203,15 @@ check(
 );
 check("面板本身也处理 Esc", /className="detail-panel"[\s\S]{0,400}?e\.key === "Escape"/.test(canvasSrc));
 
+// ---------- 坑 13：撤销栈不能跨时间线 ----------
+// 撤销栈存的是某条时间线的快照。带着 A 的栈切到 B，在 B 里撤销就会把 A 的内容
+// 写进 B，直接毁数据。所以 currentId 一变就必须清空历史。
+check(
+  "切换时间线清空撤销栈",
+  /useEffect\(\(\)\s*=>\s*\{[\s\S]{0,120}?setHistory\(emptyHistory\)[\s\S]{0,60}?\},\s*\[currentId\]\)/.test(
+    readFileSync(join(SRC, "App.tsx"), "utf8")
+  )
+);
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === 35 ? 0 : 1);
+process.exit(ok === 36 ? 0 : 1);

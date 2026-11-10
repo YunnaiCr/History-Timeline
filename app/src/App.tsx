@@ -174,6 +174,17 @@ export default function App() {
 
   // ---------- 撤销 / 重做 ----------
   const [history, setHistory] = useState<History>(emptyHistory);
+
+  /**
+   * 切换时间线时清空撤销栈。
+   *
+   * 撤销栈里存的是**某一条时间线**的快照。如果带着 A 的栈切到 B，
+   * 在 B 里按 Ctrl+Z 会把 A 的内容写进 B —— 直接毁掉 B 的数据。
+   * 所以只要当前时间线变了，历史一律作废。
+   */
+  useEffect(() => {
+    setHistory(emptyHistory);
+  }, [currentId]);
   /** 与 data 同步的最新快照，供 mutate 在同一轮事件里连续调用时读到正确的前值 */
   const dataRef = useRef<DataFile>(data);
   useEffect(() => {
