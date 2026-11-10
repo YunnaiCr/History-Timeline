@@ -296,5 +296,45 @@ const flat = parseImport(
 );
 check("全顶层不受影响", flat.ok === true);
 
+// 28. 模糊年代相关字段：可选、可往返、缺省不写
+const vague = JSON.stringify({
+  events: [
+    {
+      title: "商朝建立",
+      start: "-1600",
+      dateText: "约公元前1600年",
+      dateTextCustom: true,
+      hideDate: false,
+      fuzz: { before: 7305, after: 7305 },
+    },
+    { title: "年代不详的某战役", start: "-500", hideDate: true, dateText: "年代不详" },
+    { title: "普通的精确事件", start: "1911-10-10" },
+  ],
+});
+const vg = parseImport(vague, seed);
+check("模糊年代文件可导入", vg.ok === true, vg.error ?? "");
+const built = vg.ok && vg.data.events.find((e) => e.title === "商朝建立");
+check("fuzz 被解析", !!built && built.fuzz.before === 7305 && built.fuzz.after === 7305);
+check("dateTextCustom 被保留", !!built && built.dateTextCustom === true);
+check("手写文本原样保留", !!built && built.dateText === "约公元前1600年");
+const hidden = vg.ok && vg.data.events.find((e) => e.title === "年代不详的某战役");
+check("hideDate 被解析", !!hidden && hidden.hideDate === true);
+const plain = vg.ok && vg.data.events.find((e) => e.title === "普通的精确事件");
+check("没填就不写这几个字段", !!plain && !plain.fuzz && !plain.hideDate && !plain.dateTextCustom);
+
+// 往返：导出再导入，fuzz / hideDate 不能丢
+const back = parseImport(serialize(vg.data), seed);
+const backBuilt = back.ok && back.data.events.find((e) => e.title === "商朝建立");
+check("fuzz 往返不丢", !!backBuilt && backBuilt.fuzz.before === 7305);
+const backHidden = back.ok && back.data.events.find((e) => e.title === "年代不详的某战役");
+check("hideDate 往返不丢", !!backHidden && backHidden.hideDate === true);
+
+// 坏 fuzz 不该让整份文件失败，只是忽略这一项
+const badFuzz = parseImport(
+  JSON.stringify({ events: [{ title: "x", start: "1900", fuzz: { before: "很多" } }] }),
+  seed
+);
+check("非法 fuzz 被忽略而不是报错", badFuzz.ok === true && !badFuzz.data.events[0].fuzz);
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === 60 ? 0 : 1);
+process.exit(ok === 69 ? 0 : 1);

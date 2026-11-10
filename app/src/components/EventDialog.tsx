@@ -28,6 +28,16 @@ export interface EventDraft {
   endM: string;
   endD: string;
   parentId?: string;
+  /** 手写的显示文本；空表示按日期自动生成 */
+  dateText: string;
+  /** 用户改过显示文本，之后不再自动生成 */
+  dateTextCustom: boolean;
+  /** 卡片上不显示时间 */
+  hideDate: boolean;
+  /** 标出不确定范围 */
+  hasFuzz: boolean;
+  /** 不确定范围 ±N 年 */
+  fuzzYears: string;
 }
 
 interface Props {
@@ -57,6 +67,11 @@ const emptyDraft = (categoryId: string, parentId?: string): EventDraft => ({
   endY: "",
   endM: "",
   endD: "",
+  dateText: "",
+  dateTextCustom: false,
+  hideDate: false,
+  hasFuzz: false,
+  fuzzYears: "10",
   parentId,
 });
 
@@ -83,6 +98,11 @@ function toDraft(ev: TimelineEvent): EventDraft {
     endM: e ? String(e.month) : "",
     endD: e ? String(e.day) : "",
     parentId: ev.parentId,
+    dateText: ev.dateText ?? "",
+    dateTextCustom: ev.dateTextCustom ?? false,
+    hideDate: ev.hideDate ?? false,
+    hasFuzz: !!ev.fuzz,
+    fuzzYears: ev.fuzz ? String(Math.max(1, Math.round((ev.fuzz.before + ev.fuzz.after) / 2 / 365.25))) : "10",
   };
 }
 
@@ -188,13 +208,27 @@ export default function EventDialog({
       }
     }
 
-    const dateText = endJdn !== undefined
+    const autoText = endJdn !== undefined
       ? `${formatHistoricalYear(d.startEra, sy)} – ${formatHistoricalYear(d.endEra, num(d.endY)!)}`
       : (num(d.startM) ?? 1) === 1 && (num(d.startD) ?? 1) === 1
         ? formatHistoricalYear(d.startEra, sy)
         : `${formatHistoricalYear(d.startEra, sy)}${num(d.startM) ?? 1}月${
             (num(d.startD) ?? 1) > 1 ? `${num(d.startD)}日` : ""
           }`;
+
+    // 手写过就用手写的；留空则回到自动生成的文本
+    const custom = d.dateText.trim();
+    const dateText = custom ? custom : autoText;
+
+    // 不确定范围：填了就画模糊带，不填就完全没有
+    let fuzz: { before: number; after: number } | undefined;
+    if (d.hasFuzz) {
+      const yr = num(d.fuzzYears);
+      if (yr !== null && yr > 0) {
+        const days = Math.round(yr * 365.25);
+        fuzz = { before: days, after: days };
+      }
+    }
 
     // 顺手创建新标签
     let createdTag: Tag | undefined;
@@ -221,6 +255,9 @@ export default function EventDialog({
       summary: d.summary.trim(),
       importance: d.importance,
       parentId: d.parentId,
+      ...(d.dateTextCustom ? { dateTextCustom: true } : {}),
+      ...(d.hideDate ? { hideDate: true } : {}),
+      ...(fuzz ? { fuzz } : {}),
     };
     onSave(ev, createdTag);
   };
@@ -303,6 +340,51 @@ export default function EventDialog({
                 onChange={(e) => patch({ startD: e.target.value })}
               />
             </div>
+          </div>
+
+          {/* 显示文本：位置定在哪是一回事，卡片上写什么是另一回事 */}
+          <label className="dlg-field">
+            <span className="dlg-label">卡片上显示的文本</span>
+            <input
+              className="dlg-input"
+              value={d.dateText}
+              placeholder={preview ? `留空则显示：${preview}` : "留空则按上面的日期自动生成"}
+              onChange={(e) => patch({ dateText: e.target.value, dateTextCustom: true })}
+            />
+            <span className="set-hint">
+              可以随便写，比如「约公元前1600年」「商朝建立初期」「年代不详」。留空就按日期自动生成。
+            </span>
+          </label>
+
+          <div className="dlg-field">
+            <label className="dlg-check">
+              <input
+                type="checkbox"
+                checked={d.hideDate}
+                onChange={(e) => patch({ hideDate: e.target.checked })}
+              />
+              卡片上不显示时间
+            </label>
+            <label className="dlg-check">
+              <input
+                type="checkbox"
+                checked={d.hasFuzz}
+                onChange={(e) => patch({ hasFuzz: e.target.checked })}
+              />
+              轴线上标出不确定范围
+            </label>
+            {d.hasFuzz && (
+              <div className="dlg-date">
+                <span className="set-hint">±</span>
+                <input
+                  className="dlg-input tiny"
+                  value={d.fuzzYears}
+                  placeholder="年"
+                  onChange={(e) => patch({ fuzzYears: e.target.value })}
+                />
+                <span className="set-hint">年（不知道多少就不勾，不要硬填）</span>
+              </div>
+            )}
           </div>
 
           <div className="dlg-field">

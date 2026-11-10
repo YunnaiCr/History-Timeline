@@ -30,6 +30,8 @@ interface Props {
   onEditEvent?: (ev: TimelineEvent) => void;
   onDeleteEvent?: (id: string) => void;
   onAddChild?: (parentId: string) => void;
+  /** 全局是否显示卡片上的时间文本（事件自己的 hideDate 优先级更高） */
+  showDates?: boolean;
 }
 
 const GUTTER = 16;
@@ -127,6 +129,7 @@ export default function CanvasArea({
   onEditEvent,
   onDeleteEvent,
   onAddChild,
+  showDates = true,
 }: Props) {
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const tagMap = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
@@ -564,6 +567,27 @@ export default function CanvasArea({
               />
             )}
 
+            {/* 不确定带：只在事件标了 fuzz 时才画，纯视觉提示，不参与布局 */}
+            {(() => {
+              if (!ev.fuzz) return null;
+              const from = ev.startJdn - ev.fuzz.before;
+              const to = (ev.endJdn ?? ev.startJdn) + ev.fuzz.after;
+              const w = Math.max(0, (to - from) * vp.pxPerDay);
+              if (w < 3) return null;
+              return (
+                <div
+                  className="fuzz-band"
+                  style={{
+                    left: GUTTER + jdnToX(vp, from),
+                    width: w,
+                    top: LINE_Y - 7,
+                    borderColor: (cat?.color ?? "#999") + "88",
+                  }}
+                  title=""
+                />
+              );
+            })()}
+
               <div
                 className={
                   "event-card" +
@@ -582,7 +606,7 @@ export default function CanvasArea({
               >
                 <div className="event-dot" style={{ background: cat?.color ?? "#999" }} />
                 <div className="event-title">{ev.title}</div>
-                <div className="event-date">{ev.dateText}</div>
+                {showDates && !ev.hideDate && <div className="event-date">{ev.dateText}</div>}
                 <div className="event-tags">
                   <span className="cat-chip" style={{ background: cat?.color }}>
                     {cat?.name}

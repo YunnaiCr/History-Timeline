@@ -1039,6 +1039,21 @@ body {
   outline: none;
 }
 
+/* 不确定带：虚线边框 + 渐变，表示"可能落在这段里" */
+.fuzz-band {
+  position: absolute;
+  height: 14px;
+  border: 1px dashed;
+  border-radius: 7px;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.06) 0 4px,
+    transparent 4px 8px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* ---------- 跳转年份 ---------- */
 .jump-group {
   flex: none;

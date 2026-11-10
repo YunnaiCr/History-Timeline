@@ -1130,6 +1130,18 @@ export default function App() {
         <button className="chip add-event" onClick={openAdd} title="新增事件">
           ＋ 新增事件
         </button>
+        <button
+          className={"chip" + (settings.showDates ? " on" : "")}
+          onClick={() => {
+            const next = { ...settings, showDates: !settings.showDates };
+            setSettings(next);
+            saveSettings(next);
+          }}
+          title="一键显示/隐藏所有卡片上的时间（单个事件仍可单独关）"
+        >
+          时间{settings.showDates ? "显示" : "隐藏"}
+        </button>
+
         <button className="chip manage" onClick={() => setManageOpen(true)} title="管理类别与标签">
           管理类别/标签
         </button>
@@ -1165,6 +1177,7 @@ export default function App() {
               onEditEvent={openEdit}
               onDeleteEvent={deleteEvent}
               onAddChild={openAddChild}
+              showDates={settings.showDates}
             />
             <div className="hud">
               <span>

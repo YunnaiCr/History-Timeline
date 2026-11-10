@@ -14,6 +14,8 @@ export interface Settings {
   backupCount: number;
   /** 备份间隔（分钟）：距上一份备份不足这个时间就不再新建 */
   backupIntervalMinutes: number;
+  /** 卡片上是否显示时间文本（单个事件还能再关） */
+  showDates: boolean;
 }
 
 const SETTINGS_KEY = "history-timeline.settings.v1";
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fileName: "history-timeline.json",
   backupCount: 5,
   backupIntervalMinutes: 10,
+  showDates: true,
 };
 
 const clampInt = (v: unknown, min: number, max: number, fallback: number): number => {
@@ -48,6 +51,7 @@ export function loadSettings(): Settings {
         1440,
         DEFAULT_SETTINGS.backupIntervalMinutes
       ),
+      showDates: typeof parsed.showDates === "boolean" ? parsed.showDates : true,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };

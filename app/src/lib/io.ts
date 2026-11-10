@@ -113,6 +113,9 @@ function toPortable(data: DataFile) {
     ...(e.summary ? { summary: e.summary } : {}),
     importance: e.importance,
     ...(e.parentId ? { parent: e.parentId } : {}),
+    ...(e.dateTextCustom ? { dateTextCustom: true } : {}),
+    ...(e.hideDate ? { hideDate: true } : {}),
+    ...(e.fuzz ? { fuzz: e.fuzz } : {}),
   }));
 
   return {
@@ -310,6 +313,19 @@ export function parseImport(text: string, fallback: DataFile): ParseResult {
         ? e.dateText
         : formatDateOut(startJdn);
 
+    // 手写文本标记 / 隐藏时间 / 不确定范围，都是可选字段
+    const dateTextCustom = e.dateTextCustom === true;
+    const hideDate = e.hideDate === true;
+    let fuzz: { before: number; after: number } | undefined;
+    if (e.fuzz && typeof e.fuzz === "object") {
+      const f = e.fuzz as Record<string, unknown>;
+      const before = Number(f.before);
+      const after = Number(f.after);
+      if (Number.isFinite(before) && Number.isFinite(after) && before >= 0 && after >= 0) {
+        fuzz = { before, after };
+      }
+    }
+
     const originalId = typeof e.id === "string" && e.id.trim() ? e.id : undefined;
     const id = originalId ?? makeId();
 
@@ -332,6 +348,9 @@ export function parseImport(text: string, fallback: DataFile): ParseResult {
         tagIds,
         summary: typeof e.summary === "string" ? e.summary : "",
         importance,
+        ...(dateTextCustom ? { dateTextCustom: true } : {}),
+        ...(hideDate ? { hideDate: true } : {}),
+        ...(fuzz ? { fuzz } : {}),
       },
       parentRef,
     });

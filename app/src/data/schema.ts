@@ -35,6 +35,22 @@ export interface TimelineEvent {
   expandMode?: "span" | "point" | "collapsed";
   /** 手动指定颜色，缺省用类别色 */
   color?: string;
+
+  /**
+   * 显示文本是用户手写的，日期变化时不再自动覆盖。
+   * "约公元前1600年"、"商朝建立初期" 这类都靠它保留。
+   */
+  dateTextCustom?: boolean;
+
+  /** 卡片上不显示时间（锚点照常参与布局和排序） */
+  hideDate?: boolean;
+
+  /**
+   * 可选的模糊范围（天），**仅用于在轴上画一条不确定带**。
+   * 不填就没有；不参与排序、聚簇和任何计算。
+   * 给不出具体年数时（比如"商朝建立"）就不要填。
+   */
+  fuzz?: { before: number; after: number };
 }
 
 /** 新库自带的类别：每个事件必须属于一个类别，所以不能为空 */
