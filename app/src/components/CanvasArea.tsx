@@ -150,6 +150,11 @@ export default function CanvasArea({
 
   const hoverTimer = useRef<number | null>(null);
   const hoverSeenRef = useRef(false);
+  /** 详情面板本身，用来接收键盘焦点（Esc 在自己身上处理，不依赖 window） */
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (selected) panelRef.current?.focus();
+  }, [selected]);
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
   const areaRef = useRef<HTMLDivElement | null>(null);
   const [areaRect, setAreaRect] = useState({ left: 0, top: 0 });
@@ -772,10 +777,43 @@ export default function CanvasArea({
       {/* ---------- 详情面板（点击固定，挂到 body，不受画布层叠影响） ---------- */}
       {selected &&
         createPortal(
-          <div
-            className="detail-panel"
-            style={{ position: "fixed", left: panelPos.left, top: panelPos.top }}
-          >
+          <>
+            {/*
+             * 遮罩层：比 window 监听更可靠——它是真实元素，点击一定落在它身上。
+             * 点空白处关闭；点到的正好是另一张卡片时，直接切换过去而不是先关再开
+             * （elementsFromPoint 能穿过遮罩拿到下面的元素）。
+             */}
+            <div
+              className="detail-backdrop"
+              onPointerDown={(e) => {
+                const under = document
+                  .elementsFromPoint(e.clientX, e.clientY)
+                  .map((el) => (el instanceof HTMLElement ? el.closest<HTMLElement>("[data-ev-id]") : null))
+                  .find((el): el is HTMLElement => !!el);
+                if (under) {
+                  const ev = eventMap.get(under.dataset.evId ?? "");
+                  if (ev) {
+                    const r = under.getBoundingClientRect();
+                    const a = areaRef.current?.getBoundingClientRect();
+                    select(ev, r.left - (a?.left ?? 0), r.top - (a?.top ?? 0), r.width, r.height);
+                    return;
+                  }
+                }
+                setSelected(null);
+              }}
+            />
+            <div
+              className="detail-panel"
+              ref={panelRef}
+              tabIndex={-1}
+              style={{ position: "fixed", left: panelPos.left, top: panelPos.top }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.stopPropagation();
+                  setSelected(null);
+                }
+              }}
+            >
             <button className="detail-close" onClick={() => setSelected(null)} title="关闭 (Esc)">
               ×
             </button>
@@ -853,7 +891,8 @@ export default function CanvasArea({
               </button>
             </div>
           )}
-          </div>,
+            </div>
+          </>,
           document.body
         )}
     </div>

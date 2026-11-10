@@ -194,5 +194,14 @@ check(
   /closest\(["']\[data-ev-id\], \[data-cluster-ids\]["']\)\)\s*return/.test(escBlock)
 );
 
+// 遮罩层：真实元素兜底，不依赖 window 监听是否注册成功
+check("详情面板有遮罩层", /className="detail-backdrop"/.test(canvasSrc));
+check(
+  "遮罩点空白关闭、点卡片切换",
+  /elementsFromPoint/.test(canvasSrc) &&
+    /className="detail-backdrop"[\s\S]{0,2000}?setSelected\(null\)/.test(canvasSrc)
+);
+check("面板本身也处理 Esc", /className="detail-panel"[\s\S]{0,400}?e\.key === "Escape"/.test(canvasSrc));
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === 32 ? 0 : 1);
+process.exit(ok === 35 ? 0 : 1);

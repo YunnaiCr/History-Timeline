@@ -1074,6 +1074,14 @@ body {
   margin-right: 2px;
 }
 
+/* 详情面板的遮罩：铺满窗口，点一下即关闭（真实元素，不依赖 window 监听） */
+.detail-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 899;
+  background: transparent;
+}
+
 /* ---------- 跳转年份 ---------- */
 .jump-group {
   flex: none;
