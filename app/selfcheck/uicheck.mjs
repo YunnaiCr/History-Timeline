@@ -165,5 +165,16 @@ check("预览用 shownText（手写优先）", /shownText/.test(dialog));
 check("预览标出轴线位置", /轴线位置/.test(dialog));
 check("只有用户改过才提示轴线位置", /usingCustomText/.test(dialog));
 
+// ---------- 坑 11：从卡片操作按钮移回卡片主体，提示要能恢复 ----------
+// 踩过：卡片右下角有"编辑/删除/子事件"三个按钮。鼠标先停在按钮上（提示被取消），
+// 再移回卡片主体时，因为按钮是卡片的子元素，mouseenter 不会重新触发，
+// 于是这张卡的悬停提示永久失效，直到离开卡片再进来。
+check(
+  "卡片在 mousemove 时会重新安排悬停提示",
+  /onMouseMove=\{[\s\S]{0,220}?scheduleHover\(ev/.test(canvasSrc),
+  "卡片缺少 hover 恢复逻辑"
+);
+check("重新安排前会检查没有待触发的计时器", /hoverTimer\.current !== null\)\s*return/.test(canvasSrc));
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === 22 ? 0 : 1);
+process.exit(ok === 24 ? 0 : 1);

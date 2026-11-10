@@ -606,6 +606,16 @@ export default function CanvasArea({
                 }
                 style={{ left: x, top: cardTop, borderLeftColor: cat?.color ?? "#999" }}
                 onMouseEnter={(e) => scheduleHover(ev, e.currentTarget as HTMLElement)}
+                /*
+                 * 从卡片右下角的操作按钮（编辑/删除/子事件）移回卡片主体时，
+                 * mouseenter 不会再触发（按钮是卡片的子元素），提示就永远弹不出来了。
+                 * 这里补一次重新计时：只在"当前没有提示、也没有待触发的计时器"时做。
+                 */
+                onMouseMove={(e) => {
+                  if (hover !== null || hoverTimer.current !== null) return;
+                  if (overCardActions(e.target)) return;
+                  scheduleHover(ev, e.currentTarget as HTMLElement);
+                }}
                 onMouseLeave={hideHover}
                 onClick={(e) => {
                   e.stopPropagation();
