@@ -327,8 +327,11 @@ export default function CanvasArea({
   };
 
   // Esc 或点击面板外部关闭详情面板
+  //
+  // 注意：监听器必须**无条件注册**（依赖数组为空），不能在开头 `if (!selected) return`。
+  // 之前就是那样写的，而挂载时 selected 还是 null，于是直接返回、监听器永远没注册上，
+  // Esc 和点击外部一直无效。关闭时 setSelected(null) 对已经是 null 的情况是无害的。
   useEffect(() => {
-    if (!selected) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setSelected(null);
     };

@@ -177,14 +177,22 @@ check("子事件 chip 带 data-ev-id", /data-ev-id=\{kid\.id\}/.test(canvasSrc))
 check("同一目标不重复重置计时器", /key === hoverKeyRef\.current\)\s*return/.test(canvasSrc));
 
 // ---------- 坑 12：点详情面板外面要能关掉 ----------
+// 这里还踩过一个更隐蔽的坑：effect 里写了 `if (!selected) return;`，依赖数组却是 []，
+// 挂载时 selected 为 null → 直接返回 → 监听器永远没注册上，Esc 和点击外部全都无效。
+const pdIdx = canvasSrc.indexOf('addEventListener("pointerdown", onPointerDown, true)');
+const escBlock = pdIdx === -1 ? "" : canvasSrc.slice(Math.max(0, pdIdx - 1000), pdIdx + 300);
+check("注册了 pointerdown 捕获监听", pdIdx !== -1);
 check(
-  "点击面板外部关闭",
-  /closest\(["']\.detail-panel["']\)\)\s*return/.test(canvasSrc)
+  "关闭监听器无条件注册（不能有 if (!selected) return 提前返回）",
+  escBlock !== "" && !/if \(!selected\)\s*return/.test(escBlock),
+  escBlock === "" ? "找不到注册代码" : /if \(!selected\)\s*return/.test(escBlock) ? "存在提前 return，监听器不会注册" : ""
 );
+check("Esc 关闭面板", /e\.key === "Escape"/.test(escBlock));
+check("点击面板内部不关", /closest\(["']\.detail-panel["']\)\)\s*return/.test(escBlock));
 check(
   "点其他卡片不当作外部（交给卡片切换）",
-  /closest\(["']\[data-ev-id\], \[data-cluster-ids\]["']\)\)\s*return/.test(canvasSrc)
+  /closest\(["']\[data-ev-id\], \[data-cluster-ids\]["']\)\)\s*return/.test(escBlock)
 );
 
 console.log(`\n${ok} passed.`);
-process.exit(ok === 29 ? 0 : 1);
+process.exit(ok === 32 ? 0 : 1);
