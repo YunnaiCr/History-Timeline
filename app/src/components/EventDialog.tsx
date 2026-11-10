@@ -34,6 +34,8 @@ export interface EventDraft {
   dateTextCustom: boolean;
   /** 卡片上不显示时间 */
   hideDate: boolean;
+  /** 卡片时间显示粒度 */
+  dateDisplay: "full" | "year" | "none";
   /** 标出不确定范围 */
   hasFuzz: boolean;
   /** 不确定范围 ±N 年 */
@@ -60,8 +62,8 @@ const emptyDraft = (categoryId: string, parentId?: string): EventDraft => ({
   importance: 2,
   startEra: "ad",
   startY: "1911",
-  startM: "1",
-  startD: "1",
+  startM: "",
+  startD: "",
   hasEnd: false,
   endEra: "ad",
   endY: "",
@@ -70,6 +72,7 @@ const emptyDraft = (categoryId: string, parentId?: string): EventDraft => ({
   dateText: "",
   dateTextCustom: false,
   hideDate: false,
+  dateDisplay: "full",
   hasFuzz: false,
   fuzzYears: "10",
   parentId,
@@ -90,17 +93,19 @@ function toDraft(ev: TimelineEvent): EventDraft {
     importance: ev.importance,
     startEra: sHist.era,
     startY: String(sHist.value),
-    startM: String(s.month),
-    startD: String(s.day),
+    // 1 月 1 日视为"没特别指定"，留空，避免卡片莫名显示"1月"
+    startM: s.month > 1 ? String(s.month) : "",
+    startD: s.day > 1 ? String(s.day) : "",
     hasEnd: !!ev.endJdn,
     endEra: eHist?.era ?? "ad",
     endY: eHist ? String(eHist.value) : "",
-    endM: e ? String(e.month) : "",
-    endD: e ? String(e.day) : "",
+    endM: e && e.month > 1 ? String(e.month) : "",
+    endD: e && e.day > 1 ? String(e.day) : "",
     parentId: ev.parentId,
     dateText: ev.dateText ?? "",
     dateTextCustom: ev.dateTextCustom ?? false,
     hideDate: ev.hideDate ?? false,
+    dateDisplay: ev.dateDisplay ?? (ev.hideDate ? "none" : "full"),
     hasFuzz: !!ev.fuzz,
     fuzzYears: ev.fuzz ? String(Math.max(1, Math.round((ev.fuzz.before + ev.fuzz.after) / 2 / 365.25))) : "10",
   };
@@ -171,8 +176,8 @@ export default function EventDialog({
     const startTxt = formatHistoricalYear(d.startEra, sy);
     const sm = num(d.startM);
     const sd = num(d.startD);
-    const withMD =
-      sm || sd ? `${startTxt.replace("年", "")}年${sm ?? 1}月${sd && sd > 1 ? `${sd}日` : ""}` : startTxt;
+    // 只有真的填了才显示月/日；留空就是"只到年"
+    const withMD = `${startTxt}${sm ? `${sm}月` : ""}${sd ? `${sd}日` : ""}`;
     if (!d.hasEnd) return withMD;
     const ey = num(d.endY);
     if (ey === null)
@@ -220,13 +225,17 @@ export default function EventDialog({
       }
     }
 
-    const autoText = endJdn !== undefined
-      ? `${formatHistoricalYear(d.startEra, sy)} – ${formatHistoricalYear(d.endEra, num(d.endY)!)}`
-      : (num(d.startM) ?? 1) === 1 && (num(d.startD) ?? 1) === 1
-        ? formatHistoricalYear(d.startEra, sy)
-        : `${formatHistoricalYear(d.startEra, sy)}${num(d.startM) ?? 1}月${
-            (num(d.startD) ?? 1) > 1 ? `${num(d.startD)}日` : ""
-          }`;
+    // 自动文本：只把用户真的填了的月/日写进去，留空就只到年
+    const smFilled = num(d.startM);
+    const sdFilled = num(d.startD);
+    const startText =
+      `${formatHistoricalYear(d.startEra, sy)}` +
+      (smFilled ? `${smFilled}月` : "") +
+      (sdFilled ? `${sdFilled}日` : "");
+    const autoText =
+      endJdn !== undefined
+        ? `${startText} – ${formatHistoricalYear(d.endEra, num(d.endY)!)}`
+        : startText;
 
     // 手写过就用手写的；留空则回到自动生成的文本
     const custom = d.dateText.trim();
@@ -268,7 +277,7 @@ export default function EventDialog({
       importance: d.importance,
       parentId: d.parentId,
       ...(d.dateTextCustom ? { dateTextCustom: true } : {}),
-      ...(d.hideDate ? { hideDate: true } : {}),
+      ...(d.dateDisplay !== "full" ? { dateDisplay: d.dateDisplay } : {}),
       ...(fuzz ? { fuzz } : {}),
     };
     onSave(ev, createdTag);
@@ -339,19 +348,23 @@ export default function EventDialog({
                 placeholder="年份，如 1911 或 221"
                 onChange={(e) => patch({ startY: e.target.value })}
               />
+              <span className="dlg-unit">年</span>
               <input
                 className="dlg-input tiny"
                 value={d.startM}
-                placeholder="月"
+                placeholder="—"
                 onChange={(e) => patch({ startM: e.target.value })}
               />
+              <span className="dlg-unit">月</span>
               <input
                 className="dlg-input tiny"
                 value={d.startD}
-                placeholder="日"
+                placeholder="—"
                 onChange={(e) => patch({ startD: e.target.value })}
               />
+              <span className="dlg-unit">日</span>
             </div>
+            <span className="set-hint">月、日可以留空，只填年份也行</span>
           </div>
 
           {/* 显示文本：位置定在哪是一回事，卡片上写什么是另一回事 */}
@@ -369,14 +382,35 @@ export default function EventDialog({
           </label>
 
           <div className="dlg-field">
-            <label className="dlg-check">
-              <input
-                type="checkbox"
-                checked={d.hideDate}
-                onChange={(e) => patch({ hideDate: e.target.checked })}
-              />
-              卡片上不显示时间
-            </label>
+            <span className="dlg-label">卡片上显示多少时间</span>
+            <div className="dlg-chips">
+              {(
+                [
+                  ["full", "完整文本"],
+                  ["year", "只显示年份"],
+                  ["none", "不显示"],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={"chip" + (d.dateDisplay === mode ? " on" : "")}
+                  onClick={() => patch({ dateDisplay: mode })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="set-hint">
+              {d.dateDisplay === "year"
+                ? "卡片上只写年份，比如「公元前88年」，适合只知道年的古代事件。"
+                : d.dateDisplay === "none"
+                  ? "卡片上不写时间。锚点仍然在轴上占位，排序和聚簇照常。"
+                  : "按「卡片上显示的文本」原样显示。"}
+            </span>
+          </div>
+
+          <div className="dlg-field">
             <label className="dlg-check">
               <input
                 type="checkbox"

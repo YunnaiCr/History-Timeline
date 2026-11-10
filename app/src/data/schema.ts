@@ -46,6 +46,15 @@ export interface TimelineEvent {
   hideDate?: boolean;
 
   /**
+   * 卡片上的时间显示粒度：
+   *  - "full"（默认）显示 dateText
+   *  - "year"  只显示年份（"公元前88年"），适合只知道年的古代事件
+   *  - "none"  完全不显示
+   * 旧字段 hideDate 仍然能读，等价于 "none"。
+   */
+  dateDisplay?: "full" | "year" | "none";
+
+  /**
    * 可选的模糊范围（天），**仅用于在轴上画一条不确定带**。
    * 不填就没有；不参与排序、聚簇和任何计算。
    * 给不出具体年数时（比如"商朝建立"）就不要填。

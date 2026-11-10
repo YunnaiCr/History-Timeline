@@ -1065,6 +1065,15 @@ body {
   z-index: 0;
 }
 
+/* 日期输入旁边的单位（年/月/日） */
+.dlg-unit {
+  flex: none;
+  font-size: 12px;
+  color: #8b93a3;
+  margin-left: -4px;
+  margin-right: 2px;
+}
+
 /* ---------- 跳转年份 ---------- */
 .jump-group {
   flex: none;

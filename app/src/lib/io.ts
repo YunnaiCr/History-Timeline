@@ -115,6 +115,7 @@ function toPortable(data: DataFile) {
     ...(e.parentId ? { parent: e.parentId } : {}),
     ...(e.dateTextCustom ? { dateTextCustom: true } : {}),
     ...(e.hideDate ? { hideDate: true } : {}),
+    ...(e.dateDisplay && e.dateDisplay !== "full" ? { dateDisplay: e.dateDisplay } : {}),
     ...(e.fuzz ? { fuzz: e.fuzz } : {}),
   }));
 
@@ -313,9 +314,16 @@ export function parseImport(text: string, fallback: DataFile): ParseResult {
         ? e.dateText
         : formatDateOut(startJdn);
 
-    // 手写文本标记 / 隐藏时间 / 不确定范围，都是可选字段
+    // 手写文本标记 / 显示粒度 / 不确定范围，都是可选字段
     const dateTextCustom = e.dateTextCustom === true;
     const hideDate = e.hideDate === true;
+    // 新字段优先；老文件的 hideDate 等价于 "none"
+    const dateDisplay: "full" | "year" | "none" =
+      e.dateDisplay === "year" || e.dateDisplay === "none"
+        ? e.dateDisplay
+        : hideDate
+          ? "none"
+          : "full";
     let fuzz: { before: number; after: number } | undefined;
     if (e.fuzz && typeof e.fuzz === "object") {
       const f = e.fuzz as Record<string, unknown>;
@@ -349,7 +357,7 @@ export function parseImport(text: string, fallback: DataFile): ParseResult {
         summary: typeof e.summary === "string" ? e.summary : "",
         importance,
         ...(dateTextCustom ? { dateTextCustom: true } : {}),
-        ...(hideDate ? { hideDate: true } : {}),
+        ...(dateDisplay !== "full" ? { dateDisplay } : {}),
         ...(fuzz ? { fuzz } : {}),
       },
       parentRef,

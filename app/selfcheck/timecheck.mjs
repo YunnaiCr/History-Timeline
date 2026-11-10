@@ -3,7 +3,7 @@
  * Note: imports the compiled JS in dist-src/ (run `npm run build:m0` first).
  * Run: node selfcheck/timecheck.mjs
  */
-import { toJdn, fromJdn } from "../dist-src/lib/time.js";
+import { toJdn, fromJdn, yearOnlyText } from "../dist-src/lib/time.js";
 import { zoomAt, panBy, xToJdn, jdnToX } from "../dist-src/lib/viewport.js";
 
 const cases = [
@@ -43,5 +43,20 @@ const rtOk = Math.abs(jdnToX(orig, xToJdn(orig, x0)) - x0) < 1e-9;
 console.log(`${rtOk ? "PASS" : "FAIL"} pixel<->jdn roundtrip`);
 if (rtOk) ok++;
 
+// 「只显示年份」模式：卡片上写什么
+const yearCases = [
+  ["点事件（公元前）", yearOnlyText(toJdn(-87, 3, 1)), "公元前88年"],
+  ["点事件（公元）", yearOnlyText(toJdn(1911, 10, 10)), "1911年"],
+  ["区间同年只写一次", yearOnlyText(toJdn(-87, 3, 1), toJdn(-87, 9, 1)), "公元前88年"],
+  ["区间跨年写两段", yearOnlyText(toJdn(-87, 3, 1), toJdn(-80, 1, 1)), "公元前88年–前81年"],
+  // 天文纪年 -1 年 = 公元前 2 年；跨公元时两端要分别带上前缀
+  ["跨公元零点的区间", yearOnlyText(toJdn(-1, 1, 1), toJdn(1, 1, 1)), "公元前2年–1年"],
+];
+for (const [name, got, expect] of yearCases) {
+  const pass = got === expect;
+  console.log(`${pass ? "PASS" : "FAIL"} ${name}: ${got}`);
+  if (pass) ok++;
+}
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === cases.length + 3 ? 0 : 1);
+process.exit(ok === cases.length + 3 + yearCases.length ? 0 : 1);

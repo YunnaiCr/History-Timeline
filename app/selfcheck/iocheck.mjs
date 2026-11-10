@@ -318,16 +318,16 @@ check("fuzz 被解析", !!built && built.fuzz.before === 7305 && built.fuzz.afte
 check("dateTextCustom 被保留", !!built && built.dateTextCustom === true);
 check("手写文本原样保留", !!built && built.dateText === "约公元前1600年");
 const hidden = vg.ok && vg.data.events.find((e) => e.title === "年代不详的某战役");
-check("hideDate 被解析", !!hidden && hidden.hideDate === true);
+check("旧 hideDate 被解析成 none", !!hidden && hidden.dateDisplay === "none");
 const plain = vg.ok && vg.data.events.find((e) => e.title === "普通的精确事件");
-check("没填就不写这几个字段", !!plain && !plain.fuzz && !plain.hideDate && !plain.dateTextCustom);
+check("没填就不写这几个字段", !!plain && !plain.fuzz && !plain.dateDisplay && !plain.dateTextCustom);
 
 // 往返：导出再导入，fuzz / hideDate 不能丢
 const back = parseImport(serialize(vg.data), seed);
 const backBuilt = back.ok && back.data.events.find((e) => e.title === "商朝建立");
 check("fuzz 往返不丢", !!backBuilt && backBuilt.fuzz.before === 7305);
 const backHidden = back.ok && back.data.events.find((e) => e.title === "年代不详的某战役");
-check("hideDate 往返不丢", !!backHidden && backHidden.hideDate === true);
+check("不显示时间往返不丢", !!backHidden && backHidden.dateDisplay === "none");
 
 // 坏 fuzz 不该让整份文件失败，只是忽略这一项
 const badFuzz = parseImport(
@@ -336,5 +336,33 @@ const badFuzz = parseImport(
 );
 check("非法 fuzz 被忽略而不是报错", badFuzz.ok === true && !badFuzz.data.events[0].fuzz);
 
+// 29. dateDisplay 三种粒度，以及老 hideDate 的兼容
+const disp = parseImport(
+  JSON.stringify({
+    events: [
+      { title: "只显示年份", start: "-87", dateDisplay: "year" },
+      { title: "不显示", start: "-500", dateDisplay: "none" },
+      { title: "完整", start: "1911-10-10" },
+      { title: "老字段 hideDate", start: "1900", hideDate: true },
+    ],
+  }),
+  seed
+);
+check("dateDisplay 文件可导入", disp.ok === true, disp.error ?? "");
+const dYear = disp.ok && disp.data.events.find((e) => e.title === "只显示年份");
+check("year 粒度被保留", !!dYear && dYear.dateDisplay === "year");
+const dNone = disp.ok && disp.data.events.find((e) => e.title === "不显示");
+check("none 粒度被保留", !!dNone && dNone.dateDisplay === "none");
+const dFull = disp.ok && disp.data.events.find((e) => e.title === "完整");
+check("默认不写 dateDisplay", !!dFull && dFull.dateDisplay === undefined);
+const dLegacy = disp.ok && disp.data.events.find((e) => e.title === "老字段 hideDate");
+check("老 hideDate 映射成 none", !!dLegacy && dLegacy.dateDisplay === "none");
+
+const dispBack = parseImport(serialize(disp.data), seed);
+check(
+  "dateDisplay 往返不丢",
+  dispBack.ok && dispBack.data.events.find((e) => e.title === "只显示年份").dateDisplay === "year"
+);
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === 69 ? 0 : 1);
+process.exit(ok === 75 ? 0 : 1);

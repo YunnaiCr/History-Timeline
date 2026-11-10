@@ -72,7 +72,22 @@ export function formatHistoricalYear(era: "bc" | "ad", yearValue: number): strin
   return era === "bc" ? `公元前${yearValue}年` : `${yearValue}年`;
 }
 
-/** 儒略日 -> 大致年份（小数），用于粗粒度定位 */export function jdnToFractionalYear(jdn: JDN): number {
+/**
+ * 只显示年份时的文本："公元前88年"，区间事件则 "公元前88–前80年"。
+ * 用于卡片上的「只显示年份」模式。
+ */
+export function yearOnlyText(startJdn: JDN, endJdn?: JDN): string {
+  const s = toHistoricalYear(fromJdn(startJdn).year);
+  const start = formatHistoricalYear(s.era, s.value);
+  if (endJdn === undefined) return start;
+  const e = toHistoricalYear(fromJdn(endJdn).year);
+  if (e.era === s.era && e.value === s.value) return start;
+  const end = e.era === "bc" ? `前${e.value}年` : `${e.value}年`;
+  return `${start}–${end}`;
+}
+
+/** 儒略日 -> 大致年份（小数），用于粗粒度定位 */
+export function jdnToFractionalYear(jdn: JDN): number {
   // 以 1 年 = 365.2425 天近似，足够画刻度和缩放
   const { year, month, day } = fromJdn(jdn);
   const yearStart = toJdn(year, 1, 1);
