@@ -180,6 +180,18 @@ export default function EventDialog({
     return `${withMD} → ${formatHistoricalYear(d.endEra, ey)}`;
   }, [d]);
 
+  /** 卡片上实际会显示的文本：手写过就用手写的，否则用自动生成的 */
+  const shownText = d.dateText.trim() || preview;
+  /**
+   * 只有用户真的动手改过，才提示"轴线位置"那一行。
+   * 老数据里的 dateText（如"约公元前1046年"）虽然不等于自动生成的结果，
+   * 但没有 dateTextCustom 标记，不该被当成"手写"，否则每次打开都很吵。
+   */
+  const usingCustomText = d.dateTextCustom && !!d.dateText.trim();
+  const fuzzYearsNum = num(d.fuzzYears);
+  const fuzzNote =
+    d.hasFuzz && fuzzYearsNum !== null && fuzzYearsNum > 0 ? `±${fuzzYearsNum} 年` : "";
+
   const submit = () => {
     if (!d.title.trim()) {
       setErr("标题不能为空");
@@ -421,7 +433,19 @@ export default function EventDialog({
             )}
           </div>
 
-          {preview && <div className="dlg-preview">将记录为：{preview}</div>}
+          {(shownText || d.hideDate) && (
+            <div className="dlg-preview">
+              {d.hideDate ? (
+                <div className="pv-main">卡片上不显示时间</div>
+              ) : (
+                <div className="pv-main">将显示为：{shownText}</div>
+              )}
+              {usingCustomText && preview && (
+                <div className="pv-sub">轴线位置：{preview}</div>
+              )}
+              {fuzzNote && <div className="pv-sub">不确定范围：{fuzzNote}</div>}
+            </div>
+          )}
 
           {/* 用 div 而不是 label：<label> 会把点击转发给内部第一个可标注元素，button 也算 */}
           <div className="dlg-field">

@@ -158,5 +158,12 @@ check(
 check("空库视野用 toJdn 构造真实日期", /toJdn\(1800,\s*1,\s*1\)/.test(appSrc));
 check("不再把 19000101 当儒略日用", !/fitRange\(\s*19000101/.test(appSrc));
 
+// ---------- 坑 10：预览必须反映"手写文本" ----------
+// 踩过：手写了「公元前88年初」，绿色预览仍显示自动生成的「公元前88年1月」，
+// 两处说法不一致。预览要以 dateText 为准，并把轴线位置单独标出来。
+check("预览用 shownText（手写优先）", /shownText/.test(dialog));
+check("预览标出轴线位置", /轴线位置/.test(dialog));
+check("只有用户改过才提示轴线位置", /usingCustomText/.test(dialog));
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === 19 ? 0 : 1);
+process.exit(ok === 22 ? 0 : 1);

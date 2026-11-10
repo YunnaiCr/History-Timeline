@@ -1039,6 +1039,17 @@ body {
   outline: none;
 }
 
+/* 预览里主行 + 补充行 */
+.dlg-preview .pv-main {
+  font-size: 12px;
+}
+
+.dlg-preview .pv-sub {
+  margin-top: 3px;
+  font-size: 11px;
+  opacity: 0.72;
+}
+
 /* 不确定带：虚线边框 + 渐变，表示"可能落在这段里" */
 .fuzz-band {
   position: absolute;
