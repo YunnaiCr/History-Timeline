@@ -215,7 +215,6 @@ export function parseImport(text: string, fallback: DataFile): ParseResult {
     parentRef?: { byId?: string; byTitle?: string };
   }
   const pending: Pending[] = [];
-  let unnamed = 0;
 
   for (let i = 0; i < rawEvents.length; i++) {
     const e = rawEvents[i] as Record<string, unknown>;
@@ -287,7 +286,6 @@ export function parseImport(text: string, fallback: DataFile): ParseResult {
 
     const originalId = typeof e.id === "string" && e.id.trim() ? e.id : undefined;
     const id = originalId ?? makeId();
-    if (!originalId) unnamed++;
 
     const parentRef = typeof e.parent === "string"
       ? { byId: e.parent, byTitle: undefined }
@@ -331,7 +329,24 @@ export function parseImport(text: string, fallback: DataFile): ParseResult {
     }
   }
 
-  void unnamed;
+  // ---- 第三遍：拒绝多层嵌套 ----
+  // 渲染只支持「父 → 子」一层。父事件自己还是子事件时，这条孙事件既不是顶层、
+  // 也不会被任何顶层事件取到，导入后会静默消失——宁可拒绝，也不要放进来看不见。
+  const byId = new Map(pending.map((p) => [p.id, p]));
+  for (let i = 0; i < pending.length; i++) {
+    const p = pending[i];
+    if (!p.ev.parentId) continue;
+    const parent = byId.get(p.ev.parentId);
+    if (parent?.ev.parentId) {
+      return {
+        ok: false,
+        error:
+          `第 ${i + 1} 条事件「${p.ev.title}」的父事件「${parent.ev.title}」本身也是子事件。\n` +
+          `当前只支持一层父子关系（父事件必须属于顶层），请调整后再导入。`,
+      };
+    }
+  }
+
   return {
     ok: true,
     data: {

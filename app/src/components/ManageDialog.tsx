@@ -116,9 +116,32 @@ export default function ManageDialog({
       setErr("至少保留一个类别");
       return;
     }
+    if (cats.some((c) => !c.name.trim())) {
+      setErr("类别名称不能为空");
+      return;
+    }
+    const catNames = cats.map((c) => c.name.trim());
+    if (new Set(catNames).size !== catNames.length) {
+      setErr("类别名称有重复");
+      return;
+    }
+    if (tgs.some((t) => !t.name.trim())) {
+      setErr("标签名称不能为空");
+      return;
+    }
+    const tagNames = tgs.map((t) => t.name.trim());
+    if (new Set(tagNames).size !== tagNames.length) {
+      setErr("标签名称有重复");
+      return;
+    }
+
+    // 改名只动 name，id 保持不变，所以事件上的引用不会断
+    const renamedCats = cats.map((c) => ({ ...c, name: c.name.trim() }));
+    const renamedTags = tgs.map((t) => ({ ...t, name: t.name.trim() }));
     const removedTagIds = tags.filter((t) => !tgs.some((x) => x.id === t.id)).map((t) => t.id);
-    onSaveCategories(cats);
-    onSaveTags(tgs, removedTagIds);
+
+    onSaveCategories(renamedCats);
+    onSaveTags(renamedTags, removedTagIds);
     onClose();
   };
 
@@ -196,15 +219,25 @@ export default function ManageDialog({
 
           <div className="dlg-field">
             <span className="dlg-label">标签（一个事件可以有多个）</span>
-            <div className="mg-tags">
+            <div className="mg-list">
               {tgs.map((t) => (
-                <span className="mg-tag" key={t.id}>
-                  #{t.name}
-                  <button className="mg-tag-x" onClick={() => removeTag(t)} title="删除标签">
+                <div className="mg-row" key={t.id}>
+                  <span className="mg-hash">#</span>
+                  <input
+                    className="mg-name"
+                    value={t.name}
+                    placeholder="标签名"
+                    onChange={(e) =>
+                      setTgs(tgs.map((x) => (x.id === t.id ? { ...x, name: e.target.value } : x)))
+                    }
+                  />
+                  <span className="mg-count">{tagCountIn(t.id)} 个事件</span>
+                  <button className="mg-del" onClick={() => removeTag(t)} title="删除标签">
                     ×
                   </button>
-                </span>
+                </div>
               ))}
+              {tgs.length === 0 && <div className="mg-empty">还没有标签</div>}
             </div>
             <div className="mg-add">
               <input

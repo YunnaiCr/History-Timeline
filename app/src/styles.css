@@ -851,6 +851,46 @@ body {
   padding: 0 2px;
 }
 
+/* ---------- 管理对话框：标签行 ---------- */
+.mg-hash {
+  flex: none;
+  width: 12px;
+  color: #6c7689;
+  font-size: 13px;
+}
+
+.mg-count {
+  flex: none;
+  font-size: 11px;
+  color: #5d6675;
+  min-width: 46px;
+  text-align: right;
+}
+
+.mg-del {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #8b93a3;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mg-del:hover {
+  background: rgba(224, 92, 92, 0.16);
+  color: #ff9b9b;
+}
+
+.mg-empty {
+  font-size: 12px;
+  color: #5d6675;
+  padding: 4px 0;
+}
+
 /* ---------- 视图切换 ---------- */
 .view-switch {
   display: inline-flex;

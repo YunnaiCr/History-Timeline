@@ -250,5 +250,51 @@ const rtKids = rt.data.events.filter((e) => e.parentId === rtWw1.id);
 check("导出→导入区间保住", !!rtWw1 && !!rtWw1.endJdn);
 check("导出→导入父子保住", rtKids.length === 5, `${rtKids.length}`);
 
+// 27. 拒绝多层嵌套（渲染只支持一层，孙事件导入后会看不见）
+const grandchild = JSON.stringify({
+  events: [
+    { title: "甲午战争", start: "1894-07-25", end: "1895-04-17" },
+    { title: "黄海海战", start: "1894-09-17", parent: "甲午战争" },
+    { title: "定远舰沉没", start: "1895-02-05", parent: "黄海海战" },
+  ],
+});
+const gc = parseImport(grandchild, seed);
+check("拒绝孙事件嵌套", gc.ok === false, gc.error ?? "竟然通过了");
+check(
+  "嵌套报错说清是哪一条",
+  gc.ok === false && gc.error.includes("第 3 条") && gc.error.includes("定远舰沉没"),
+  gc.error
+);
+check(
+  "嵌套报错指出父事件也是子事件",
+  gc.ok === false && gc.error.includes("黄海海战"),
+  gc.error
+);
+
+// 两层（父 + 子）必须仍然通过
+const twoLevels = parseImport(
+  JSON.stringify({
+    events: [
+      { title: "甲午战争", start: "1894-07-25", end: "1895-04-17" },
+      { title: "黄海海战", start: "1894-09-17", parent: "甲午战争" },
+    ],
+  }),
+  seed
+);
+check("一层父子仍然允许", twoLevels.ok === true, twoLevels.error ?? "");
+
+// 三条互不相关的顶层事件当然也可以
+const flat = parseImport(
+  JSON.stringify({
+    events: [
+      { title: "A", start: "1900" },
+      { title: "B", start: "1901" },
+      { title: "C", start: "1902" },
+    ],
+  }),
+  seed
+);
+check("全顶层不受影响", flat.ok === true);
+
 console.log(`\n${ok} passed.`);
-process.exit(ok === 55 ? 0 : 1);
+process.exit(ok === 60 ? 0 : 1);
