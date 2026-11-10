@@ -10,7 +10,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import type { Category, Tag, TimelineEvent } from "./data/schema";
 import { emptyData, loadData, saveData, type DataFile } from "./lib/store";
 import { emptyHistory, pushHistory, redo, undo, type History } from "./lib/history";
-import { downloadJson, parseImport, parseDateIn, exportFileName, mergeData, serialize } from "./lib/io";
+import { downloadJson, parseImport, parseDateIn, exportFileName, mergeData, serializeTimeline, serializeLibrary, parseAny } from "./lib/io";
 import { dataRange } from "./lib/minimap";
 import { panBy, fitRange, zoomAt, type Viewport } from "./lib/viewport";
 import { loadSettings, saveSettings, type Settings } from "./lib/settings";
@@ -25,11 +25,28 @@ import {
   readTextFile,
   writeTextFile,
 } from "./lib/fsdata";
-import { loadDataFile, resolveDataPath, saveDataFile } from "./lib/repository";
+import { resolveDataPath, saveDataFile, loadLibraryFile } from "./lib/repository";
+import type { Library, TimelineDoc } from "./lib/library";
+import {
+  addTimeline,
+  duplicateTimeline,
+  emptyLibrary,
+  findTimeline,
+  nameTaken,
+  newTimeline,
+  removeTimeline,
+  renameTimeline,
+  replaceTimeline,
+  setViewport,
+} from "./lib/library";
+import HomeScreen from "./components/HomeScreen";
 
 const MIN_PX_PER_DAY = 1e-4; // 一屏约 2000 年
 const MAX_PX_PER_DAY = 400; // 一屏几小时
 const GUTTER = 16; // 与 CanvasArea 左留白对齐
+
+/** 没有打开任何时间线时的占位文档（保持引用稳定，避免无谓重渲染） */
+const EMPTY_DOC: DataFile = emptyData();
 
 /** 导出副本放在数据目录下的这个子文件夹里 */
 const EXPORT_SUBDIR = "exports";
@@ -49,8 +66,39 @@ export default function App() {
   // 设置（数据目录、文件名、备份份数）
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
 
-  const [data, setData] = useState<DataFile>(() => emptyData());
-  const [vp, setVp] = useState<Viewport>(() => fitAll(emptyData(), 1200));
+  // ---------- 多时间线 ----------
+  const [library, setLibrary] = useState<Library>(() => emptyLibrary());
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  /** 首页 / 时间线内部 */
+  const [screen, setScreen] = useState<"home" | "timeline">("home");
+
+  const currentDoc = useMemo(
+    () => library.timelines.find((t) => t.id === currentId) ?? null,
+    [library, currentId]
+  );
+
+  const data: DataFile = currentDoc ?? EMPTY_DOC;
+
+  /**
+   * 兼容原有的 setData 调用点：写入的是**当前时间线**的内容。
+   * 直接改 library 里的对应条目，id / name / createdAt 不受影响。
+   */
+  const setData = useCallback(
+    (action: DataFile | ((prev: DataFile) => DataFile)) => {
+      if (!currentId) return;
+      setLibrary((lib) => {
+        const idx = lib.timelines.findIndex((t) => t.id === currentId);
+        if (idx < 0) return lib;
+        const prev = lib.timelines[idx];
+        const next = typeof action === "function" ? action(prev) : action;
+        if (next === prev) return lib;
+        return replaceTimeline(lib, currentId, next);
+      });
+    },
+    [currentId]
+  );
+
+  const [vp, setVp] = useState<Viewport>(() => fitAll(EMPTY_DOC, 1200));
   const [activeCats, setActiveCats] = useState<Set<string>>(new Set());
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -86,6 +134,8 @@ export default function App() {
 
   // 保存失败提示（写盘失败必须让用户知道，否则会静默丢数据）
   const [saveError, setSaveError] = useState<string | null>(null);
+  /** 中性提示（比如"已自动升级为新格式"），不是错误 */
+  const [notice, setNotice] = useState<string | null>(null);
   /** 上一次成功写盘的文本，内容没变就不重复写 */
   const lastTextRef = useRef<string | null>(null);
 
@@ -187,9 +237,31 @@ export default function App() {
           }
         }
 
-        const res = await loadDataFile(path);
+        const res = await loadLibraryFile(path);
         if (cancelled) return;
-        adoptData(res.data);
+        setLibrary(res.library);
+        const openId = res.library.lastOpenedId ?? res.library.timelines[0]?.id ?? null;
+        setCurrentId(openId);
+        const doc = res.library.timelines.find((t) => t.id === openId);
+        if (doc) {
+          dataRef.current = doc;
+          setActiveCats(new Set(doc.categories.map((c) => c.id)));
+          setActiveTags(new Set());
+          setVp((v) => {
+            const width = v.width || 1200;
+            if (doc.viewport) {
+              return { ...doc.viewport, width };
+            }
+            return fitAll(doc, width);
+          });
+        }
+        // 有内容就直接进时间线；空库停在首页，方便新建或导入
+        setScreen(doc && doc.events.length > 0 ? "timeline" : "home");
+        if (res.migrated) {
+          setNotice(
+            "检测到旧版单库文件，已自动升级为多时间线格式（一条名为「我的时间线」），原内容全部保留。"
+          );
+        }
         if (res.error) {
           setSaveError(
             `${res.error}\n\n为避免覆盖，应用已按空库启动。原文件未做任何修改；` +
@@ -207,26 +279,26 @@ export default function App() {
     };
   }, [desktop, adoptData]);
 
-  // 保存：数据变化 600ms 后写盘
+  // 保存：整个库变化 600ms 后写盘
   useEffect(() => {
     if (loading) return;
     setSaveState("saving");
     const timer = window.setTimeout(async () => {
       if (!desktop) {
+        // 浏览器模式：只缓存当前时间线内容
         const ok = saveData(data);
         setSaveState(ok ? "saved" : "error");
         if (!ok) setSaveError("浏览器本地存储写入失败，可能已满。请用「导出 JSON」备份。");
         else setSaveError(null);
         return;
       }
-      const res = await saveDataFile(dataPath, data, {
+      const res = await saveDataFile(dataPath, library, {
         backupCount: settings.backupCount,
         backupIntervalMinutes: settings.backupIntervalMinutes,
         lastText: lastTextRef.current,
       });
       if (res.ok) {
-        // 记下写入的文本，下次内容相同时直接跳过
-        if (!res.skipped) lastTextRef.current = serialize(data);
+        if (!res.skipped) lastTextRef.current = serializeLibrary(library);
         setSaveState("saved");
         setSaveError(null);
         setLastSavedAt(new Date().toLocaleTimeString("zh-CN", { hour12: false }));
@@ -236,7 +308,7 @@ export default function App() {
       }
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [data, dataPath, settings.backupCount, settings.backupIntervalMinutes, loading, desktop]);
+  }, [library, dataPath, settings.backupCount, settings.backupIntervalMinutes, loading, desktop, data]);
 
   // 首次拿到真实宽度后，按全量数据自适应（用 layoutEffect 避免闪一下旧画面）
   useLayoutEffect(() => {
@@ -524,18 +596,35 @@ export default function App() {
         const exists = await pathExists(newPath);
         if (exists) {
           // 目标已有数据：切过去（不覆盖）
-          const res = await loadDataFile(newPath);
+          const res = await loadLibraryFile(newPath);
+          if (res.error) {
+            setSaveError(`切换失败：${res.error}`);
+            return;
+          }
           setDataPath(newPath);
           setDataDir(next.dataDir ?? (await defaultDataDir()));
-          adoptData(res.data);
-          setSaveError(res.error ?? null);
-          window.alert(`已切换到已有数据文件：\n${newPath}\n\n共 ${res.data.events.length} 条事件。`);
+          setLibrary(res.library);
+          const openId = res.library.lastOpenedId ?? res.library.timelines[0]?.id ?? null;
+          setCurrentId(openId);
+          const doc = res.library.timelines.find((t) => t.id === openId);
+          if (doc) {
+            dataRef.current = doc;
+            setActiveCats(new Set(doc.categories.map((c) => c.id)));
+            setActiveTags(new Set());
+            setVp((v) => (doc.viewport ? { ...doc.viewport, width: v.width || 1200 } : fitAll(doc, v.width || 1200)));
+          }
+          setScreen(doc && doc.events.length > 0 ? "timeline" : "home");
+          window.alert(
+            `已切换到已有数据文件：\n${newPath}\n\n` +
+              `${res.library.timelines.length} 条时间线，共 ` +
+              `${res.library.timelines.reduce((n, t) => n + t.events.length, 0)} 个事件。`
+          );
         } else {
-          // 目标不存在：把当前数据存过去
+          // 目标不存在：把当前整库存过去
           const dir = next.dataDir ?? (await defaultDataDir());
           setDataDir(dir);
           setDataPath(newPath);
-          const res = await saveDataFile(newPath, data, {
+          const res = await saveDataFile(newPath, library, {
             backupCount: next.backupCount,
             backupIntervalMinutes: next.backupIntervalMinutes,
           });
@@ -546,41 +635,184 @@ export default function App() {
         setSaveError(`切换数据位置失败：${String(e)}`);
       }
     },
-    [settings, desktop, data, adoptData]
+    [settings, desktop, library]
   );
+
+  // ---------- 多时间线操作 ----------
+  /** 打开某条时间线：恢复它自己的视口 */
+  const openTimeline = useCallback(
+    (id: string) => {
+      const doc = findTimeline(library, id);
+      if (!doc) return;
+      setCurrentId(id);
+      setLibrary((lib) => ({ ...lib, lastOpenedId: id }));
+      dataRef.current = doc;
+      setActiveCats(new Set(doc.categories.map((c) => c.id)));
+      setActiveTags(new Set());
+      setExpanded(new Set());
+      setVp((v) => {
+        const width = v.width || 1200;
+        return doc.viewport ? { ...doc.viewport, width } : fitAll(doc, width);
+      });
+      setScreen("timeline");
+    },
+    [library]
+  );
+
+  /** 返回首页（顺手把当前视口记下来） */
+  const backToHome = useCallback(() => {
+    if (currentId) {
+      setLibrary((lib) =>
+        setViewport(lib, currentId, { startJdn: vp.startJdn, pxPerDay: vp.pxPerDay })
+      );
+    }
+    setScreen("home");
+  }, [currentId, vp.startJdn, vp.pxPerDay]);
+
+  const createTimeline = useCallback(
+    (name: string) => {
+      if (nameTaken(library, name)) {
+        window.alert(`已经有一条叫「${name}」的时间线了，换个名字。`);
+        return;
+      }
+      const doc = newTimeline(name);
+      setLibrary((lib) => addTimeline(lib, doc));
+      setCurrentId(doc.id);
+      dataRef.current = doc;
+      setActiveCats(new Set(doc.categories.map((c) => c.id)));
+      setActiveTags(new Set());
+      setVp((v) => fitAll(doc, v.width || 1200));
+      setScreen("timeline");
+    },
+    [library]
+  );
+
+  const doRenameTimeline = useCallback(
+    (id: string, name: string) => {
+      if (nameTaken(library, name, id)) {
+        window.alert(`已经有一条叫「${name}」的时间线了。`);
+        return;
+      }
+      setLibrary((lib) => renameTimeline(lib, id, name));
+    },
+    [library]
+  );
+
+  const doDeleteTimeline = useCallback(
+    (id: string) => {
+      if (library.timelines.length <= 1) return;
+      const doc = findTimeline(library, id);
+      if (!doc) return;
+      const answer = window.prompt(
+        `删除时间线「${doc.name}」？\n\n` +
+          `它自己的 ${doc.events.length} 个事件、${doc.tags.length} 个标签会一起删除，其他时间线不受影响。\n\n` +
+          `如果确认，请输入这条时间线的名字：`,
+        ""
+      );
+      if (answer === null) return;
+      if (answer.trim() !== doc.name) {
+        window.alert("名字不一致，已取消删除。");
+        return;
+      }
+      setLibrary((lib) => removeTimeline(lib, id));
+      if (currentId === id) setCurrentId(null);
+    },
+    [library, currentId]
+  );
+
+  // 时间线内容变化时，顺手把视口记进库（节流 1.5 秒）
+  useEffect(() => {
+    if (!currentId || loading || screen !== "timeline") return;
+    const timer = window.setTimeout(() => {
+      setLibrary((lib) => setViewport(lib, currentId, { startJdn: vp.startJdn, pxPerDay: vp.pxPerDay }));
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [currentId, vp.startJdn, vp.pxPerDay, loading, screen]);
 
   // ---------- 导入 / 导出 ----------
   const fileRef = useRef<HTMLInputElement | null>(null);
+  /** 这次选文件是"导入到当前线"还是"从首页导入成新时间线" */
+  const importTargetRef = useRef<"timeline" | "library">("timeline");
+
+  const today = () => new Date().toISOString().slice(0, 10);
+
+  /** 弹「另存为」，返回用户选的路径；取消返回 null */
+  const pickExportPath = async (fileName: string, title: string): Promise<string | null> => {
+    const exportDir = dataDir ? joinPath(dataDir, EXPORT_SUBDIR) : exeDir;
+    if (exportDir) await ensureDir(exportDir);
+    return save({
+      title,
+      defaultPath: exportDir ? joinPath(exportDir, fileName) : fileName,
+      filters: [{ name: "JSON 文件", extensions: ["json"] }],
+    });
+  };
+
+  /** 把一段文本写到用户选的路径 */
+  const writeOut = async (target: string, text: string) => {
+    try {
+      await writeTextFile(target, text);
+      window.alert(`已导出到：\n${target}`);
+    } catch (e) {
+      setSaveError(`导出失败：${String(e)}`);
+    }
+  };
 
   /**
-   * 导出为 JSON。
-   *
-   * 默认存到数据目录下的 exports\ 子文件夹（默认即 文档\HistoryTimeline\exports\），
-   * 和主数据文件分开放，别人来拿文件时不用在一堆备份里挑。
-   * 也可以改到任意位置。浏览器模式没有保存对话框，退回普通下载。
+   * 导出**当前时间线**（v1 格式，单个文件）。
+   * 默认存到数据目录下的 exports\ 子文件夹，也可以改到任意位置。
    */
   const handleExport = async () => {
+    if (!currentDoc) return;
+    const text = serializeTimeline(currentDoc);
     if (!desktop) {
       downloadJson(data, exportFileName());
       return;
     }
     try {
-      const exportDir = dataDir ? joinPath(dataDir, EXPORT_SUBDIR) : exeDir;
-      if (exportDir) await ensureDir(exportDir);
-      const defaultPath = exportDir ? joinPath(exportDir, exportFileName()) : exportFileName();
-      const target = await save({
-        title: "导出为 JSON",
-        defaultPath,
-        filters: [{ name: "JSON 文件", extensions: ["json"] }],
-      });
-      if (!target) return; // 用户取消
-      // 导出是副本，不做备份轮转
-      const res = await saveDataFile(target, data, { backupCount: 0, backupIntervalMinutes: 0 });
-      if (res.ok) {
-        window.alert(`已导出到：\n${target}`);
-      } else {
-        setSaveError(`导出失败：${res.error}`);
-      }
+      const target = await pickExportPath(exportFileName(), "导出当前时间线");
+      if (!target) return;
+      await writeOut(target, text);
+    } catch (e) {
+      setSaveError(`导出失败：${String(e)}`);
+    }
+  };
+
+  /** 从首页导出整个库 */
+  const handleExportAll = async () => {
+    const text = serializeLibrary(library);
+    if (!desktop) {
+      window.alert("浏览器模式暂不支持导出整库，请在桌面版里操作。");
+      return;
+    }
+    try {
+      const target = await pickExportPath(`history-timeline-all-${today()}.json`, "导出全部时间线");
+      if (!target) return;
+      await writeOut(target, text);
+    } catch (e) {
+      setSaveError(`导出失败：${String(e)}`);
+    }
+  };
+
+  /** 从首页导出勾选的时间线（装在一个文件里） */
+  const handleExportSelected = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const picked = library.timelines.filter((t) => ids.includes(t.id));
+    const sub: Library = {
+      version: 2,
+      lastOpenedId: picked[0]?.id ?? null,
+      timelines: picked,
+    };
+    if (!desktop) {
+      window.alert("浏览器模式暂不支持导出，请在桌面版里操作。");
+      return;
+    }
+    try {
+      const target = await pickExportPath(
+        `history-timeline-${picked.length}-lines-${today()}.json`,
+        `导出所选的 ${picked.length} 条时间线`
+      );
+      if (!target) return;
+      await writeOut(target, serializeLibrary(sub));
     } catch (e) {
       setSaveError(`导出失败：${String(e)}`);
     }
@@ -588,6 +820,32 @@ export default function App() {
 
   const handleImportFile = async (file: File) => {
     const text = await file.text();
+
+    // 首页导入：整库追加为新时间线；单条时间线文件也变成本库的一条新线
+    if (importTargetRef.current === "library") {
+      const any = parseAny(text, emptyData());
+      if (!any.ok || !any.value) {
+        window.alert(`导入失败：${any.error ?? "未知错误"}`);
+        return;
+      }
+      const incoming: TimelineDoc[] =
+        any.value.kind === "library" ? any.value.library.timelines : [any.value.doc];
+      let added = 0;
+      setLibrary((lib) => {
+        let next = lib;
+        for (const doc of incoming) {
+          let name = doc.name;
+          let n = 2;
+          while (nameTaken(next, name)) name = `${doc.name} (${n++})`;
+          next = addTimeline(next, { ...doc, id: `${doc.id}-${Date.now().toString(36)}-${added}`, name });
+          added++;
+        }
+        return next;
+      });
+      window.alert(`已导入 ${incoming.length} 条时间线，可在首页看到。`);
+      return;
+    }
+
     const res = parseImport(text, data);
     if (!res.ok || !res.data) {
       window.alert(`导入失败：${res.error ?? "未知错误"}`);
@@ -673,8 +931,31 @@ export default function App() {
 
   return (
     <div className="app">
+      {screen === "home" ? (
+        <HomeScreen
+          library={library}
+          dataPath={dataPath}
+          onOpen={openTimeline}
+          onCreate={createTimeline}
+          onRename={doRenameTimeline}
+          onDuplicate={(id) => setLibrary((lib) => duplicateTimeline(lib, id))}
+          onDelete={doDeleteTimeline}
+          onExportAll={() => void handleExportAll()}
+          onExportSelected={(ids) => void handleExportSelected(ids)}
+          onImport={() => {
+            importTargetRef.current = "library";
+            fileRef.current?.click();
+          }}
+        />
+      ) : (
+        <>
       <header className="topbar">
-        <div className="brand">历史事件线</div>
+        <button className="chip back-home" onClick={backToHome} title="返回所有时间线">
+          ← 所有时间线
+        </button>
+        <div className="brand tl-title" title={currentDoc?.name ?? ""}>
+          {currentDoc?.name ?? "历史事件线"}
+        </div>
 
         <div className="view-switch">
           <button
@@ -818,6 +1099,15 @@ export default function App() {
           />
         )}
       </main>
+
+      {notice && (
+        <div className="notice-bar">
+          <span>{notice}</span>
+          <button className="save-error-close" onClick={() => setNotice(null)}>
+            ×
+          </button>
+        </div>
+      )}
 
       {saveError && (
         <div className="save-error" role="alert">
@@ -974,6 +1264,8 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

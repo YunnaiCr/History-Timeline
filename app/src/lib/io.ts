@@ -20,6 +20,8 @@
  */
 import { makeId, type DataFile } from "./store";
 import type { Category, Tag, TimelineEvent } from "../data/schema";
+import type { Library, TimelineDoc } from "./library";
+import { newTimeline, normalizeName } from "./library";
 import { fromJdn, toJdn, fromHistoricalYear, toHistoricalYear } from "./time";
 
 export const EXPORT_VERSION = 1;
@@ -125,6 +127,30 @@ function toPortable(data: DataFile) {
 /** 序列化成可读 JSON（缩进 2 格，字段顺序固定，方便 diff） */
 export function serialize(data: DataFile): string {
   return JSON.stringify(toPortable(data), null, 2);
+}
+
+/** 单条时间线导出：在 v1 结构上多带一个 name，便于导入时还原名字 */
+export function serializeTimeline(doc: { name: string } & DataFile): string {
+  return JSON.stringify({ ...toPortable(doc), name: doc.name }, null, 2);
+}
+
+/** 整个库导出：所有时间线装在一个文件里 */
+export function serializeLibrary(lib: Library): string {
+  return JSON.stringify(
+    {
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      lastOpenedId: lib.lastOpenedId,
+      timelines: lib.timelines.map((t) => ({
+        id: t.id,
+        name: t.name,
+        ...(t.viewport ? { viewport: t.viewport } : {}),
+        ...toPortable(t),
+      })),
+    },
+    null,
+    2
+  );
 }
 
 /** 触发浏览器下载。WebView2 会走自己的下载流程。 */
@@ -367,9 +393,7 @@ export interface MergeResult {
   /** 新增的类别 / 标签数 */
   newCategories: number;
   newTags: number;
-}
-
-/**
+}/**
  * 把 incoming 合并进 current（不覆盖任何已有事件）。
  *
  * - 类别按名称对齐；找不到同名就追加（颜色沿用文件里的）
@@ -461,4 +485,110 @@ export function mergeData(current: DataFile, incoming: DataFile): MergeResult {
     newCategories,
     newTags,
   };
+}
+
+// ============================================================
+// 多时间线：整库解析
+// ============================================================
+
+export type ParsedFile =
+  | { kind: "timeline"; doc: TimelineDoc }
+  | { kind: "library"; library: Library };
+
+export interface ParseAnyResult {
+  ok: boolean;
+  value?: ParsedFile;
+  error?: string;
+}
+
+function parseViewport(v: unknown): { startJdn: number; pxPerDay: number } | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  if (typeof o.startJdn !== "number" || typeof o.pxPerDay !== "number") return undefined;
+  if (!Number.isFinite(o.startJdn) || !Number.isFinite(o.pxPerDay) || o.pxPerDay <= 0) {
+    return undefined;
+  }
+  return { startJdn: o.startJdn, pxPerDay: o.pxPerDay };
+}
+
+/**
+ * 解析任意导入文件：单条时间线（v1）或整个库（v2）。
+ *
+ * 每条时间线内部都走 parseImport，所以层级、日期、类别等校验完全复用，
+ * 不会出现"整库导入时校验宽松"的漏洞。
+ */
+export function parseAny(text: string, fallback: DataFile): ParseAnyResult {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return { ok: false, error: "不是合法的 JSON 文件" };
+  }
+  if (!raw || typeof raw !== "object") return { ok: false, error: "文件内容不是一个对象" };
+
+  const obj = raw as Record<string, unknown>;
+
+  // ---- v2：整库 ----
+  if (Array.isArray(obj.timelines)) {
+    const rawList = obj.timelines as Record<string, unknown>[];
+    if (rawList.length === 0) return { ok: false, error: "文件里的 timelines 是空的" };
+
+    const out: TimelineDoc[] = [];
+    for (let i = 0; i < rawList.length; i++) {
+      const t = rawList[i];
+      if (!t || typeof t !== "object") {
+        return { ok: false, error: `第 ${i + 1} 条时间线不是一个对象` };
+      }
+      const name =
+        typeof t.name === "string" && t.name.trim()
+          ? normalizeName(t.name)
+          : `时间线 ${i + 1}`;
+      // 复用单库解析：把这条线包成 v1 文件再走一遍
+      const inner = parseImport(
+        JSON.stringify({ version: 1, events: t.events, categories: t.categories, tags: t.tags }),
+        fallback
+      );
+      if (!inner.ok || !inner.data) {
+        return { ok: false, error: `时间线「${name}」内容有误：${inner.error}` };
+      }
+      out.push({
+        ...inner.data,
+        id: typeof t.id === "string" && t.id.trim() ? t.id : makeId("tl"),
+        name,
+        createdAt: typeof t.createdAt === "string" ? t.createdAt : new Date().toISOString(),
+        viewport: parseViewport(t.viewport),
+      });
+    }
+
+    // id 去重：手写文件很容易复制粘贴出重复 id
+    const seen = new Set<string>();
+    for (const doc of out) {
+      while (seen.has(doc.id)) doc.id = makeId("tl");
+      seen.add(doc.id);
+    }
+
+    const lastOpenedId =
+      typeof obj.lastOpenedId === "string" && seen.has(obj.lastOpenedId)
+        ? obj.lastOpenedId
+        : out[0].id;
+
+    return { ok: true, value: { kind: "library", library: { version: 2, lastOpenedId, timelines: out } } };
+  }
+
+  // ---- v1：单条时间线 ----
+  const parsed = parseImport(text, fallback);
+  if (!parsed.ok || !parsed.data) return { ok: false, error: parsed.error };
+
+  const name =
+    typeof obj.name === "string" && obj.name.trim() ? normalizeName(obj.name) : "导入的时间线";
+
+  const doc: TimelineDoc = {
+    ...parsed.data,
+    ...newTimeline(name),
+    // newTimeline 自带空事件与默认类别，这里用解析结果覆盖
+    events: parsed.data.events,
+    categories: parsed.data.categories,
+    tags: parsed.data.tags,
+  };
+  return { ok: true, value: { kind: "timeline", doc } };
 }

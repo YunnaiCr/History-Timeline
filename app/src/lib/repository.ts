@@ -8,6 +8,8 @@
  */
 import type { DataFile } from "./store";
 import { emptyData } from "./store";
+import type { Library } from "./library";
+import { emptyLibrary, migrateV1 } from "./library";
 import type { Settings } from "./settings";
 import {
   baseNameOf,
@@ -23,7 +25,7 @@ import {
   stripJsonExt,
   writeTextFile,
 } from "./fsdata";
-import { parseImport, serialize } from "./io";
+import { parseAny, serialize, serializeLibrary } from "./io";
 import { formatStamp, parseStamp, shouldCreateBackup } from "./backup";
 
 /** 备份文件名前缀：history-timeline.backup-<时间戳>.json */
@@ -36,38 +38,74 @@ export async function resolveDataPath(settings: Settings): Promise<string> {
 }
 
 export interface LoadResult {
-  data: DataFile;
+  library: Library;
   /** 文件不存在（首次运行） */
   created: boolean;
+  /** 旧版单库文件被自动升级成了多时间线 */
+  migrated: boolean;
   /** 文件存在但读取/解析失败，已回退成空库 */
   error?: string;
 }
 
 /**
- * 读取数据文件。
- * 文件不存在 → 返回空库（首次运行）。
- * 文件损坏 → 返回空库并带上错误信息，**绝不静默覆盖用户文件**。
+ * 读取数据文件（整个时间线库）。
+ *
+ * - 文件不存在 → 建一个只有一条空时间线的库
+ * - 老版本 v1 文件 → 自动包成一条时间线（不丢数据）
+ * - 文件损坏 → 返回空库并带上错误信息，**绝不静默覆盖用户文件**
  */
-export async function loadDataFile(path: string): Promise<LoadResult> {
+export async function loadLibraryFile(path: string): Promise<LoadResult> {
   const exists = await pathExists(path);
   if (!exists) {
-    return { data: emptyData(), created: true };
+    return { library: emptyLibrary(), created: true, migrated: false };
   }
   let text: string;
   try {
     text = await readTextFile(path);
   } catch (err) {
-    return { data: emptyData(), created: false, error: `读取数据文件失败：${String(err)}` };
+    return {
+      library: emptyLibrary(),
+      created: false,
+      migrated: false,
+      error: `读取数据文件失败：${String(err)}`,
+    };
   }
   // 空文件当作首次运行
   if (!text.trim()) {
-    return { data: emptyData(), created: true };
+    return { library: emptyLibrary(), created: true, migrated: false };
   }
-  const parsed = parseImport(text, emptyData());
-  if (!parsed.ok || !parsed.data) {
-    return { data: emptyData(), created: false, error: `数据文件格式有误：${parsed.error}` };
+
+  const parsed = parseAny(text, emptyData());
+  if (!parsed.ok || !parsed.value) {
+    return {
+      library: emptyLibrary(),
+      created: false,
+      migrated: false,
+      error: `数据文件格式有误：${parsed.error}`,
+    };
   }
-  return { data: parsed.data, created: false };
+  if (parsed.value.kind === "library") {
+    return { library: parsed.value.library, created: false, migrated: false };
+  }
+  // v1 单库 → 多时间线
+  return {
+    library: migrateV1(parsed.value.doc),
+    created: false,
+    migrated: true,
+  };
+}
+
+/** 兼容旧调用：只关心当前时间线内容时用这个 */
+export async function loadDataFile(path: string): Promise<{
+  data: DataFile;
+  created: boolean;
+  error?: string;
+}> {
+  const res = await loadLibraryFile(path);
+  const current =
+    res.library.timelines.find((t) => t.id === res.library.lastOpenedId) ??
+    res.library.timelines[0];
+  return { data: current ?? emptyData(), created: res.created, error: res.error };
 }
 
 function backupPrefix(fileName: string): string {
@@ -132,14 +170,15 @@ export interface SaveOptions {
  */
 export async function saveDataFile(
   path: string,
-  data: DataFile,
+  data: DataFile | Library,
   opts: SaveOptions
 ): Promise<SaveResult> {
   const dir = dirOf(path);
   const fileName = baseNameOf(path);
   const now = opts.now ?? Date.now();
   try {
-    const text = serialize(data);
+    const text =
+      "timelines" in data ? serializeLibrary(data as Library) : serialize(data as DataFile);
 
     if (opts.lastText != null && text === opts.lastText) {
       return { ok: true, path, skipped: true };
